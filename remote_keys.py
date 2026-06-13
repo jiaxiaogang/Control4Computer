@@ -117,6 +117,8 @@ PAGE = """
     const timers = new Map();
     const touchpad = document.getElementById('touchpad');
     let lastPoint = null;
+    let tapPoints = [];
+    let longPressTimer = null;
 
     async function post(path, body) {
       await fetch(`${path}?token=${encodeURIComponent(token)}`, {
@@ -132,6 +134,10 @@ PAGE = """
 
     function clickMouse(button) {
       return post(`/click/${button}`);
+    }
+
+    function doubleClickMouse() {
+      return post('/dclick');
     }
 
     function moveMouse(dx, dy) {
@@ -169,11 +175,30 @@ PAGE = """
       button.addEventListener('click', () => clickMouse(button.dataset.click));
     });
 
+    function clearLongPressTimer() {
+      if (longPressTimer) clearTimeout(longPressTimer);
+      longPressTimer = null;
+    }
+
     touchpad.addEventListener('pointerdown', event => {
       event.preventDefault();
       touchpad.setPointerCapture(event.pointerId);
       touchpad.classList.add('active');
-      lastPoint = { x: event.clientX, y: event.clientY };
+      lastPoint = {
+        x: event.clientX,
+        y: event.clientY,
+        startX: event.clientX,
+        startY: event.clientY,
+        moved: false,
+        longPressed: false,
+      };
+      clearLongPressTimer();
+      longPressTimer = setTimeout(() => {
+        if (!lastPoint || lastPoint.moved) return;
+        lastPoint.longPressed = true;
+        tapPoints = [];
+        clickMouse('right');
+      }, 650);
     });
 
     touchpad.addEventListener('pointermove', event => {
@@ -181,11 +206,37 @@ PAGE = """
       event.preventDefault();
       const dx = Math.round((event.clientX - lastPoint.x) * 1.7);
       const dy = Math.round((event.clientY - lastPoint.y) * 1.7);
-      lastPoint = { x: event.clientX, y: event.clientY };
+      const moved = lastPoint.moved || Math.hypot(event.clientX - lastPoint.startX, event.clientY - lastPoint.startY) > 8;
+      lastPoint = {
+        ...lastPoint,
+        x: event.clientX,
+        y: event.clientY,
+        moved,
+      };
+      if (moved) clearLongPressTimer();
       if (dx || dy) moveMouse(dx, dy);
     });
 
-    function stopTouchpad() {
+    function handleTouchpadTap() {
+      const now = Date.now();
+      tapPoints = tapPoints.filter(timestamp => now - timestamp < 320);
+      tapPoints.push(now);
+      if (tapPoints.length >= 2) {
+        tapPoints = [];
+        doubleClickMouse();
+      } else {
+        setTimeout(() => {
+          if (tapPoints.length === 1 && Date.now() - tapPoints[0] >= 300) {
+            tapPoints = [];
+            clickMouse('left');
+          }
+        }, 310);
+      }
+    }
+
+    function stopTouchpad(event) {
+      clearLongPressTimer();
+      if (event?.type === 'pointerup' && lastPoint && !lastPoint.moved && !lastPoint.longPressed) handleTouchpadTap();
       lastPoint = null;
       touchpad.classList.remove('active');
     }
@@ -230,6 +281,14 @@ def click(button):
     if request.args.get("token") != TOKEN or button not in ALLOWED_BUTTONS:
         abort(403)
     pyautogui.click(button=button)
+    return {"ok": True}
+
+
+@app.post("/dclick")
+def double_click():
+    if request.args.get("token") != TOKEN:
+        abort(403)
+    pyautogui.doubleClick()
     return {"ok": True}
 
 
