@@ -170,16 +170,20 @@ PAGE = """
       touch-action: none;
     }
     .touchpad.active { border-color: #3d8bfd; color: #cfe1ff; }
-    .fullscreen-toggle {
+    .floating-actions {
       position: absolute;
       right: 16px;
       bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+      display: flex;
+      gap: 8px;
+      z-index: 3;
+    }
+    .floating-actions button {
       width: 34px;
       height: 34px;
       border-radius: 10px;
       background: rgba(16,20,24,.48);
       font-size: 18px;
-      z-index: 3;
       opacity: .72;
     }
     .reconnect-toggle {
@@ -228,7 +232,11 @@ PAGE = """
       <div class="hint">单指：移动/点击；双指：滚动。</div>
     </div>
     <button class="reconnect-toggle" id="reconnectToggle" type="button" aria-label="重连">↻</button>
-    <button class="fullscreen-toggle" id="fullscreenToggle" type="button" aria-label="切换全屏">⛶</button>
+    <div class="floating-actions">
+      <button id="vibrationDown" type="button" aria-label="减弱震感">−</button>
+      <button id="vibrationUp" type="button" aria-label="增强震感">+</button>
+      <button id="fullscreenToggle" type="button" aria-label="切换全屏">⛶</button>
+    </div>
   </main>
 
   <script>
@@ -240,6 +248,8 @@ PAGE = """
     const textHistory = document.getElementById('textHistory');
     const sendText = document.getElementById('sendText');
     const reconnectToggle = document.getElementById('reconnectToggle');
+    const vibrationDown = document.getElementById('vibrationDown');
+    const vibrationUp = document.getElementById('vibrationUp');
     const fullscreenToggle = document.getElementById('fullscreenToggle');
     let lastPoint = null;
     let tapPoints = [];
@@ -248,6 +258,7 @@ PAGE = """
     let twoFingerTap = null;
     let longPressTimer = null;
     let lastMoveVibrateAt = 0;
+    let vibrationScale = Number(localStorage.getItem('vibrationScale')) || 1;
 
     function updateControlSize() {
       const viewportWidth = window.visualViewport?.width || window.innerWidth;
@@ -278,15 +289,15 @@ PAGE = """
       return post(`/click/${button}`);
     }
 
-    function vibrate(duration = 12) {
-      if (navigator.vibrate) navigator.vibrate(duration);
+    function vibrate(duration = 75) {
+      if (navigator.vibrate) navigator.vibrate(Math.round(duration * vibrationScale));
     }
 
     function vibrateDuringMove() {
       const now = Date.now();
       if (now - lastMoveVibrateAt < 90) return;
       lastMoveVibrateAt = now;
-      vibrate(8);
+      vibrate(50);
     }
 
     function doubleClickMouse() {
@@ -414,6 +425,16 @@ PAGE = """
       } catch (error) {
         console.error('reconnect failed', error);
       }
+    });
+    vibrationDown.addEventListener('click', () => {
+      vibrationScale /= 1.3;
+      localStorage.setItem('vibrationScale', String(vibrationScale));
+      vibrate();
+    });
+    vibrationUp.addEventListener('click', () => {
+      vibrationScale *= 1.3;
+      localStorage.setItem('vibrationScale', String(vibrationScale));
+      vibrate();
     });
     fullscreenToggle.addEventListener('click', toggleFullscreen);
     document.addEventListener('fullscreenchange', updateFullscreenButton);
