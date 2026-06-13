@@ -5,7 +5,7 @@ import subprocess
 
 app = Flask(__name__)
 TOKEN = secrets.token_urlsafe(8)
-ALLOWED_KEYS = {"space", "enter", "esc", "up", "down", "left", "right", "volumedown", "volumeup"}
+ALLOWED_KEYS = {"space", "enter", "esc", "up", "down", "left", "right", "volumedown", "volumeup", "backspace"}
 ALLOWED_BUTTONS = {"left", "right"}
 
 PAGE = """
@@ -17,9 +17,14 @@ PAGE = """
   <title>Remote Keys</title>
   <style>
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      height: 100%;
+    }
     body {
       margin: 0;
       min-height: 100vh;
+      min-height: 100svh;
+      min-height: 100dvh;
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: #101418;
       color: #f5f7fa;
@@ -27,18 +32,21 @@ PAGE = """
       overflow: hidden;
     }
     main {
+      --edge-gap: 12px;
       height: 100vh;
+      height: 100svh;
+      height: 100dvh;
       position: relative;
-      padding: 12px;
+      padding: var(--edge-gap);
     }
     .text-send {
       position: absolute;
       left: 50%;
       top: 18px;
-      width: min(calc(100vw - 24px), 720px);
+      width: min(calc(100vw - 44px), 720px);
       transform: translateX(-50%);
       display: grid;
-      grid-template-columns: 1fr auto;
+      grid-template-columns: 2fr 1fr 1fr;
       gap: 10px;
       z-index: 2;
     }
@@ -55,16 +63,17 @@ PAGE = """
     }
     .text-send input:focus { border-color: #3d8bfd; }
     .text-send button {
-      min-width: 112px;
+      min-width: 0;
       height: 58px;
       font-size: 20px;
     }
     .controls {
-      --pad-size: 200px;
-      --pad-gap: clamp(6px, calc(var(--pad-size) * .06), 10px);
+      --control-edge-gap: 22px;
+      --pad-size: calc(100vw - var(--control-edge-gap) * 2);
+      --pad-gap: clamp(8px, calc(var(--pad-size) * .03), 14px);
       position: absolute;
       left: 50%;
-      bottom: 18px;
+      bottom: calc(28px + env(safe-area-inset-bottom, 0px));
       width: var(--pad-size);
       transform: translateX(-50%);
       display: grid;
@@ -75,15 +84,15 @@ PAGE = """
     .pad {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      grid-template-rows: repeat(3, calc((var(--pad-size) - var(--pad-gap) * 2) / 3));
+      grid-template-rows: repeat(3, calc((var(--pad-size) - var(--pad-gap) * 2) / 6));
       gap: var(--pad-gap);
     }
     button {
       border: 1px solid rgba(255,255,255,.08);
-      border-radius: clamp(10px, calc(var(--pad-size) * .07), 14px);
+      border-radius: clamp(14px, calc(var(--pad-size) * .04), 24px);
       background: rgba(38,49,61,.92);
       color: #fff;
-      font-size: clamp(24px, calc(var(--pad-size) * .16), 32px);
+      font-size: clamp(28px, calc(var(--pad-size) * .12), 44px);
       font-weight: 900;
       box-shadow: 0 8px 20px rgba(0,0,0,.34);
       user-select: none;
@@ -92,19 +101,19 @@ PAGE = """
       backdrop-filter: blur(8px);
     }
     button:active, button.pressed { background: #3d8bfd; transform: translateY(1px); }
-    .esc { grid-column: 1; grid-row: 1; font-size: clamp(14px, calc(var(--pad-size) * .1), 20px); }
+    .esc { grid-column: 1; grid-row: 1; font-size: clamp(18px, calc(var(--pad-size) * .07), 28px); }
     .up { grid-column: 2; grid-row: 1; }
-    .space { grid-column: 3; grid-row: 1; font-size: clamp(12px, calc(var(--pad-size) * .08), 16px); }
+    .space { grid-column: 3; grid-row: 1; font-size: clamp(16px, calc(var(--pad-size) * .055), 24px); }
     .left { grid-column: 1; grid-row: 2; }
-    .enter { grid-column: 2; grid-row: 2; font-size: clamp(12px, calc(var(--pad-size) * .08), 16px); }
+    .enter { grid-column: 2; grid-row: 2; font-size: clamp(16px, calc(var(--pad-size) * .055), 24px); }
     .right { grid-column: 3; grid-row: 2; }
-    .volume-down { grid-column: 1; grid-row: 3; font-size: clamp(12px, calc(var(--pad-size) * .08), 16px); }
+    .volume-down { grid-column: 1; grid-row: 3; font-size: clamp(16px, calc(var(--pad-size) * .055), 24px); }
     .down { grid-column: 2; grid-row: 3; }
-    .volume-up { grid-column: 3; grid-row: 3; font-size: clamp(12px, calc(var(--pad-size) * .08), 16px); }
+    .volume-up { grid-column: 3; grid-row: 3; font-size: clamp(16px, calc(var(--pad-size) * .055), 24px); }
     .touchpad {
       width: 100%;
       height: 100%;
-      border-radius: 26px;
+      border-radius: 0;
       background: #1b232d;
       border: 1px solid #344253;
       display: flex;
@@ -132,6 +141,7 @@ PAGE = """
     <section class="text-send">
       <input id="textInput" type="text" placeholder="输入要发送到电脑的内容">
       <button id="sendText" type="button">发送</button>
+      <button id="backspace" type="button" data-key="backspace">回退</button>
     </section>
     <div class="controls">
       <section class="pad">
@@ -164,7 +174,8 @@ PAGE = """
       const viewportWidth = window.visualViewport?.width || window.innerWidth;
       const screenWidth = Math.min(screen.width || viewportWidth, screen.availWidth || viewportWidth);
       const width = Math.min(viewportWidth, screenWidth);
-      controls.style.setProperty('--pad-size', `${Math.round(Math.min(width * 0.6, 200))}px`);
+      const controlEdgeGap = 22;
+      controls.style.setProperty('--pad-size', `${Math.round(Math.max(width - controlEdgeGap * 2, 240))}px`);
     }
 
     updateControlSize();
