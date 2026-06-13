@@ -151,6 +151,18 @@ PAGE = """
       touch-action: none;
     }
     .touchpad.active { border-color: #3d8bfd; color: #cfe1ff; }
+    .fullscreen-toggle {
+      position: absolute;
+      right: 18px;
+      bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+      width: 46px;
+      height: 46px;
+      border-radius: 14px;
+      background: rgba(16,20,24,.48);
+      font-size: 24px;
+      z-index: 3;
+      opacity: .72;
+    }
     .hint {
       color: #c4ced9;
       text-align: center;
@@ -184,6 +196,7 @@ PAGE = """
       </section>
       <div class="hint">单指：移动/点击；双指：滚动。</div>
     </div>
+    <button class="fullscreen-toggle" id="fullscreenToggle" type="button" aria-label="切换全屏">⛶</button>
   </main>
 
   <script>
@@ -194,6 +207,7 @@ PAGE = """
     const textInput = document.getElementById('textInput');
     const textHistory = document.getElementById('textHistory');
     const sendText = document.getElementById('sendText');
+    const fullscreenToggle = document.getElementById('fullscreenToggle');
     let lastPoint = null;
     let tapPoints = [];
     let activePointers = new Map();
@@ -298,6 +312,22 @@ PAGE = """
         pasteText();
       }
     });
+
+    async function toggleFullscreen() {
+      deactivateTextInput();
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      } else {
+        await document.documentElement.requestFullscreen();
+      }
+    }
+
+    function updateFullscreenButton() {
+      fullscreenToggle.textContent = document.fullscreenElement ? '×' : '⛶';
+    }
+
+    fullscreenToggle.addEventListener('click', toggleFullscreen);
+    document.addEventListener('fullscreenchange', updateFullscreenButton);
 
     function start(button) {
       const key = button.dataset.key;
