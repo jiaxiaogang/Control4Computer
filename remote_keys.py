@@ -170,25 +170,25 @@ PAGE = """
     .touchpad.active { border-color: #3d8bfd; color: #cfe1ff; }
     .fullscreen-toggle {
       position: absolute;
-      right: 18px;
-      bottom: calc(18px + env(safe-area-inset-bottom, 0px));
-      width: 46px;
-      height: 46px;
-      border-radius: 14px;
+      right: 16px;
+      bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
       background: rgba(16,20,24,.48);
-      font-size: 24px;
+      font-size: 18px;
       z-index: 3;
       opacity: .72;
     }
     .reconnect-toggle {
       position: absolute;
-      left: 18px;
-      bottom: calc(18px + env(safe-area-inset-bottom, 0px));
-      width: 46px;
-      height: 46px;
-      border-radius: 14px;
+      left: 16px;
+      bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
       background: rgba(16,20,24,.48);
-      font-size: 20px;
+      font-size: 16px;
       z-index: 3;
       opacity: .72;
     }
