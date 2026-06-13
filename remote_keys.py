@@ -22,54 +22,45 @@ PAGE = """
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: #101418;
       color: #f5f7fa;
-      display: flex;
-      align-items: center;
-      justify-content: center;
       touch-action: manipulation;
+      overflow: hidden;
     }
     main {
-      width: min(92vw, 460px);
+      height: 100vh;
       display: grid;
-      gap: 14px;
-      padding: 16px 0;
-    }
-    h1 {
-      margin: 0 0 8px;
-      text-align: center;
-      font-size: 24px;
-      font-weight: 700;
+      grid-template-rows: 1fr auto;
+      gap: 10px;
+      padding: 10px;
     }
     .pad {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      grid-template-rows: repeat(3, 82px);
-      gap: 12px;
-    }
-    .extra, .mouse-buttons {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 12px;
+      grid-template-rows: repeat(3, 56px);
+      gap: 8px;
+      width: min(100%, 620px);
+      margin: 0 auto;
     }
     button {
       border: 0;
-      border-radius: 18px;
+      border-radius: 14px;
       background: #26313d;
       color: #fff;
-      font-size: 30px;
+      font-size: 24px;
       font-weight: 800;
-      box-shadow: 0 8px 18px rgba(0,0,0,.22);
+      box-shadow: 0 6px 14px rgba(0,0,0,.22);
       user-select: none;
       touch-action: none;
     }
     button:active, button.pressed { background: #3d8bfd; transform: translateY(1px); }
+    .esc { grid-column: 1; grid-row: 1; font-size: 18px; }
     .up { grid-column: 2; grid-row: 1; }
+    .space { grid-column: 3; grid-row: 1; font-size: 16px; }
     .left { grid-column: 1; grid-row: 2; }
-    .space { grid-column: 2; grid-row: 2; font-size: 22px; }
+    .enter { grid-column: 2; grid-row: 2; font-size: 16px; }
     .right { grid-column: 3; grid-row: 2; }
     .down { grid-column: 2; grid-row: 3; }
-    .extra button, .mouse-buttons button { height: 64px; font-size: 22px; }
     .touchpad {
-      height: 190px;
+      min-height: 0;
       border-radius: 22px;
       background: #1b232d;
       border: 1px solid #344253;
@@ -77,7 +68,7 @@ PAGE = """
       align-items: center;
       justify-content: center;
       color: #7f8c99;
-      font-size: 15px;
+      font-size: 16px;
       user-select: none;
       touch-action: none;
     }
@@ -85,31 +76,28 @@ PAGE = """
     .hint {
       color: #aab4c0;
       text-align: center;
-      font-size: 13px;
-      line-height: 1.5;
+      font-size: 12px;
+      line-height: 1.4;
+      width: min(100%, 620px);
+      margin: 0 auto;
     }
   </style>
 </head>
 <body>
   <main>
-    <h1>电脑按键遥控</h1>
-    <section class="pad">
-      <button class="up" data-key="up">↑</button>
-      <button class="left" data-key="left">←</button>
-      <button class="space" data-key="space">SPACE</button>
-      <button class="right" data-key="right">→</button>
-      <button class="down" data-key="down">↓</button>
-    </section>
-    <section class="extra">
-      <button data-key="enter">ENTER</button>
-      <button data-key="esc">ESC</button>
-    </section>
     <div class="touchpad" id="touchpad">触摸板区域</div>
-    <section class="mouse-buttons">
-      <button data-click="left">左键</button>
-      <button data-click="right">右键</button>
-    </section>
-    <div class="hint">点按触发一次；长按方向键和空格会连续触发。<br>在触摸板区域滑动可移动鼠标。</div>
+    <div>
+      <section class="pad">
+        <button class="esc" data-key="esc">ESC</button>
+        <button class="up" data-key="up">↑</button>
+        <button class="space" data-key="space">SPACE</button>
+        <button class="left" data-key="left">←</button>
+        <button class="enter" data-key="enter">ENTER</button>
+        <button class="right" data-key="right">→</button>
+        <button class="down" data-key="down">↓</button>
+      </section>
+      <div class="hint">触摸板：滑动移动，轻触单击，双击左键，长按右键。</div>
+    </div>
   </main>
 
   <script>
@@ -169,10 +157,6 @@ PAGE = """
       button.addEventListener('pointerup', () => stop(button));
       button.addEventListener('pointercancel', () => stop(button));
       button.addEventListener('pointerleave', () => stop(button));
-    });
-
-    document.querySelectorAll('button[data-click]').forEach(button => {
-      button.addEventListener('click', () => clickMouse(button.dataset.click));
     });
 
     function clearLongPressTimer() {
