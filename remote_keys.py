@@ -27,66 +27,75 @@ PAGE = """
     }
     main {
       height: 100vh;
+      position: relative;
+      padding: 12px;
+    }
+    .controls {
+      position: absolute;
+      left: 50%;
+      bottom: 18px;
+      width: min(calc(100vw - 24px), 720px);
+      transform: translateX(-50%);
       display: grid;
-      grid-template-rows: 1fr auto;
       gap: 10px;
-      padding: 10px;
+      pointer-events: none;
     }
     .pad {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      grid-template-rows: repeat(3, 56px);
-      gap: 8px;
-      width: min(100%, 620px);
-      margin: 0 auto;
+      grid-template-rows: repeat(3, clamp(72px, 12vh, 96px));
+      gap: 12px;
     }
     button {
-      border: 0;
-      border-radius: 14px;
-      background: #26313d;
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 22px;
+      background: rgba(38,49,61,.92);
       color: #fff;
-      font-size: 24px;
-      font-weight: 800;
-      box-shadow: 0 6px 14px rgba(0,0,0,.22);
+      font-size: 38px;
+      font-weight: 900;
+      box-shadow: 0 10px 26px rgba(0,0,0,.34);
       user-select: none;
       touch-action: none;
+      pointer-events: auto;
+      backdrop-filter: blur(8px);
     }
     button:active, button.pressed { background: #3d8bfd; transform: translateY(1px); }
-    .esc { grid-column: 1; grid-row: 1; font-size: 18px; }
+    .esc { grid-column: 1; grid-row: 1; font-size: 24px; }
     .up { grid-column: 2; grid-row: 1; }
-    .space { grid-column: 3; grid-row: 1; font-size: 16px; }
+    .space { grid-column: 3; grid-row: 1; font-size: 22px; }
     .left { grid-column: 1; grid-row: 2; }
-    .enter { grid-column: 2; grid-row: 2; font-size: 16px; }
+    .enter { grid-column: 2; grid-row: 2; font-size: 22px; }
     .right { grid-column: 3; grid-row: 2; }
     .down { grid-column: 2; grid-row: 3; }
     .touchpad {
-      min-height: 0;
-      border-radius: 22px;
+      width: 100%;
+      height: 100%;
+      border-radius: 26px;
       background: #1b232d;
       border: 1px solid #344253;
       display: flex;
       align-items: center;
       justify-content: center;
       color: #7f8c99;
-      font-size: 16px;
+      font-size: 22px;
       user-select: none;
       touch-action: none;
     }
     .touchpad.active { border-color: #3d8bfd; color: #cfe1ff; }
     .hint {
-      color: #aab4c0;
+      color: #c4ced9;
       text-align: center;
-      font-size: 12px;
+      font-size: 14px;
       line-height: 1.4;
-      width: min(100%, 620px);
-      margin: 0 auto;
+      text-shadow: 0 2px 8px rgba(0,0,0,.65);
+      pointer-events: none;
     }
   </style>
 </head>
 <body>
   <main>
     <div class="touchpad" id="touchpad">触摸板区域</div>
-    <div>
+    <div class="controls">
       <section class="pad">
         <button class="esc" data-key="esc">ESC</button>
         <button class="up" data-key="up">↑</button>
