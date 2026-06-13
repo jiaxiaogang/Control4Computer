@@ -24,7 +24,18 @@
 
 ```bash
 python -m venv .venv
+```
+
+Windows 激活虚拟环境：
+
+```bash
 source .venv/Scripts/activate
+```
+
+macOS 激活虚拟环境：
+
+```bash
+source .venv/bin/activate
 ```
 
 安装依赖：
@@ -33,7 +44,9 @@ source .venv/Scripts/activate
 pip install -r requirements.txt
 ```
 
-## 打包 exe
+## 打包
+
+### 打包 Windows exe
 
 安装运行依赖和 PyInstaller：
 
@@ -54,9 +67,36 @@ python -m PyInstaller --clean --noconfirm Control4Computer.spec
 dist/Control4Computer.exe
 ```
 
+### 打包 macOS app
+
+安装运行依赖和 PyInstaller：
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt pyinstaller
+```
+
+在项目根目录运行：
+
+```bash
+python -m PyInstaller --clean --noconfirm --windowed --name Control4Computer remote_keys.py
+```
+
+打包完成后，app 文件会生成在：
+
+```text
+dist/Control4Computer.app
+```
+
+如果需要重新打包，可以先删除旧的 `build/`、`dist/` 和 `Control4Computer.spec`，再执行上面的打包命令。
+
 ## 启动
 
 ### 双击启动
+
+#### Windows
 
 在项目目录中双击：
 
@@ -67,6 +107,26 @@ PCRun.bat
 它会在后台启动服务，不会保留控制台窗口。如果项目目录下存在 `.venv` 虚拟环境，会优先使用 `.venv\Scripts\pythonw.exe`；否则依次尝试系统 `pyw`、`pythonw`、`python`。
 
 双击启动后，可以在浏览器打开：
+
+```text
+http://127.0.0.1:8000/
+```
+
+页面会自动跳转到本次启动生成的 token 控制页面。
+
+#### macOS
+
+打包完成后，在 Finder 中双击：
+
+```text
+dist/Control4Computer.app
+```
+
+首次运行时，macOS 可能会提示该应用来自未识别开发者。可以在“系统设置 > 隐私与安全性”中允许打开。
+
+由于软件需要控制鼠标和键盘，首次使用时还需要在“系统设置 > 隐私与安全性 > 辅助功能”中允许 `Control4Computer` 控制电脑。如果无法触发按键或鼠标操作，请检查该权限是否已开启。
+
+启动后，可以在浏览器打开：
 
 ```text
 http://127.0.0.1:8000/
