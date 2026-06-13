@@ -49,7 +49,7 @@ PCRun.bat
 http://127.0.0.1:8000/
 ```
 
-页面会显示本次启动生成的 token 链接，点击后进入控制页面。
+页面会自动跳转到本次启动生成的 token 控制页面。
 
 ### 命令行启动
 
@@ -64,18 +64,18 @@ python remote_keys.py
 ```text
 Remote Keys is running.
 Open on this computer: http://127.0.0.1:8000/?token=xxxx
-Open on your phone: http://<computer-lan-ip>:8000/ then tap the token link
+Open on your phone: http://<computer-lan-ip>:8000/
 ```
 
 ## 在本机使用
 
-在电脑浏览器打开终端里显示的本机地址：
+在电脑浏览器打开：
 
 ```text
-http://127.0.0.1:8000/?token=xxxx
+http://127.0.0.1:8000/
 ```
 
-其中 `xxxx` 是本次启动生成的 token。
+页面会自动进入本次启动生成的 token 控制页面。
 
 ## 在手机上使用
 
@@ -100,7 +100,7 @@ http://127.0.0.1:8000/?token=xxxx
    http://192.168.1.23:8000/
    ```
 
-4. 页面会显示带 token 的控制页面链接，点击该链接进入控制页面。
+4. 页面会自动跳转到带 token 的控制页面。
 5. 在页面上使用控制区：
    - 九宫格按键区以大按钮浮在触摸板底部，左上角是 `ESC`，右上角是 `SPACE`，中间是 `ENTER`。
    - 点击或长按方向键、空格键控制电脑。

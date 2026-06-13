@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template_string, abort
+from flask import Flask, request, render_template_string, abort, redirect
 import pyautogui
 import secrets
 
@@ -246,7 +246,7 @@ PAGE = """
 @app.get("/")
 def index():
     if request.args.get("token") != TOKEN:
-        return f"打开控制页面：<br><a href='/?token={TOKEN}'>/?token={TOKEN}</a>"
+        return redirect(f"/?token={TOKEN}")
     return render_template_string(PAGE, token=TOKEN)
 
 
