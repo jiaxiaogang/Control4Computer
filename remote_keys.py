@@ -155,7 +155,7 @@ PAGE = """
         <button class="down" data-key="down">↓</button>
         <button class="volume-up" data-key="volumeup">VOL +</button>
       </section>
-      <div class="hint">触摸板：滑动移动，轻触单击，双击左键，长按右键。</div>
+      <div class="hint">单指：移动/点击；双指：滚动。</div>
     </div>
   </main>
 
@@ -168,6 +168,8 @@ PAGE = """
     const sendText = document.getElementById('sendText');
     let lastPoint = null;
     let tapPoints = [];
+    let activePointers = new Map();
+    let scrollPoint = null;
     let longPressTimer = null;
 
     function updateControlSize() {
@@ -204,6 +206,10 @@ PAGE = """
 
     function moveMouse(dx, dy) {
       return post('/move', { dx, dy });
+    }
+
+    function scrollMouse(dx, dy) {
+      return post('/scroll', { dx, dy });
     }
 
     async function pasteText() {
@@ -253,10 +259,26 @@ PAGE = """
       longPressTimer = null;
     }
 
+    function averagePoint() {
+      const points = [...activePointers.values()];
+      return {
+        x: points.reduce((sum, point) => sum + point.x, 0) / points.length,
+        y: points.reduce((sum, point) => sum + point.y, 0) / points.length,
+      };
+    }
+
     touchpad.addEventListener('pointerdown', event => {
       event.preventDefault();
       touchpad.setPointerCapture(event.pointerId);
       touchpad.classList.add('active');
+      activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (activePointers.size >= 2) {
+        clearLongPressTimer();
+        lastPoint = null;
+        tapPoints = [];
+        scrollPoint = averagePoint();
+        return;
+      }
       lastPoint = {
         x: event.clientX,
         y: event.clientY,
@@ -267,7 +289,7 @@ PAGE = """
       };
       clearLongPressTimer();
       longPressTimer = setTimeout(() => {
-        if (!lastPoint || lastPoint.moved) return;
+        if (!lastPoint || lastPoint.moved || activePointers.size !== 1) return;
         lastPoint.longPressed = true;
         tapPoints = [];
         clickMouse('right');
@@ -275,8 +297,21 @@ PAGE = """
     });
 
     touchpad.addEventListener('pointermove', event => {
-      if (!lastPoint) return;
+      if (!activePointers.has(event.pointerId)) return;
       event.preventDefault();
+      activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (activePointers.size >= 2) {
+        clearLongPressTimer();
+        const point = averagePoint();
+        if (scrollPoint) {
+          const dx = Math.round((point.x - scrollPoint.x) * 5);
+          const dy = Math.round((point.y - scrollPoint.y) * 5);
+          if (Math.abs(dx) >= 4 || Math.abs(dy) >= 4) scrollMouse(dx, dy);
+        }
+        scrollPoint = point;
+        return;
+      }
+      if (!lastPoint) return;
       const dx = Math.round((event.clientX - lastPoint.x) * 1.7);
       const dy = Math.round((event.clientY - lastPoint.y) * 1.7);
       const moved = lastPoint.moved || Math.hypot(event.clientX - lastPoint.startX, event.clientY - lastPoint.startY) > 8;
@@ -309,9 +344,15 @@ PAGE = """
 
     function stopTouchpad(event) {
       clearLongPressTimer();
+      activePointers.delete(event.pointerId);
+      if (activePointers.size >= 2) {
+        scrollPoint = averagePoint();
+        return;
+      }
       if (event?.type === 'pointerup' && lastPoint && !lastPoint.moved && !lastPoint.longPressed) handleTouchpadTap();
       lastPoint = null;
-      touchpad.classList.remove('active');
+      scrollPoint = null;
+      if (activePointers.size === 0) touchpad.classList.remove('active');
     }
 
     touchpad.addEventListener('pointerup', stopTouchpad);
@@ -346,6 +387,20 @@ def move():
     dx = max(-80, min(80, int(data.get("dx", 0))))
     dy = max(-80, min(80, int(data.get("dy", 0))))
     pyautogui.moveRel(dx, dy, duration=0)
+    return {"ok": True}
+
+
+@app.post("/scroll")
+def scroll():
+    if request.args.get("token") != TOKEN:
+        abort(403)
+    data = request.get_json() or {}
+    dx = max(-120, min(120, int(data.get("dx", 0))))
+    dy = max(-120, min(120, int(data.get("dy", 0))))
+    if dy:
+        pyautogui.scroll(-dy)
+    if dx:
+        pyautogui.hscroll(dx)
     return {"ok": True}
 
 
