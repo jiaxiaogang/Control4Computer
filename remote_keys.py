@@ -4,7 +4,7 @@ import secrets
 
 app = Flask(__name__)
 TOKEN = secrets.token_urlsafe(8)
-ALLOWED_KEYS = {"space", "enter", "esc", "up", "down", "left", "right"}
+ALLOWED_KEYS = {"space", "enter", "esc", "up", "down", "left", "right", "volumedown", "volumeup"}
 ALLOWED_BUTTONS = {"left", "right"}
 
 PAGE = """
@@ -66,7 +66,9 @@ PAGE = """
     .left { grid-column: 1; grid-row: 2; }
     .enter { grid-column: 2; grid-row: 2; font-size: 22px; }
     .right { grid-column: 3; grid-row: 2; }
+    .volume-down { grid-column: 1; grid-row: 3; font-size: 22px; }
     .down { grid-column: 2; grid-row: 3; }
+    .volume-up { grid-column: 3; grid-row: 3; font-size: 22px; }
     .touchpad {
       width: 100%;
       height: 100%;
@@ -103,7 +105,9 @@ PAGE = """
         <button class="left" data-key="left">←</button>
         <button class="enter" data-key="enter">ENTER</button>
         <button class="right" data-key="right">→</button>
+        <button class="volume-down" data-key="volumedown">VOL -</button>
         <button class="down" data-key="down">↓</button>
+        <button class="volume-up" data-key="volumeup">VOL +</button>
       </section>
       <div class="hint">触摸板：滑动移动，轻触单击，双击左键，长按右键。</div>
     </div>
