@@ -67,6 +67,32 @@ PAGE = """
       height: 58px;
       font-size: 20px;
     }
+    .text-history {
+      grid-column: 1 / -1;
+      display: none;
+      max-height: 220px;
+      overflow-y: auto;
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: 18px;
+      background: rgba(16,20,24,.94);
+      box-shadow: 0 10px 26px rgba(0,0,0,.28);
+    }
+    .text-history.visible:not(:empty) { display: block; }
+    .text-history button {
+      width: 100%;
+      height: 42px;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+      text-align: left;
+      font-size: 16px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      backdrop-filter: none;
+    }
     .controls {
       --control-edge-gap: 22px;
       --pad-size: calc(100vw - var(--control-edge-gap) * 2);
@@ -142,6 +168,7 @@ PAGE = """
       <input id="textInput" type="text" placeholder="输入要发送到电脑的内容">
       <button id="sendText" type="button">发送</button>
       <button id="backspace" type="button" data-key="backspace">回退</button>
+      <div class="text-history" id="textHistory"></div>
     </section>
     <div class="controls">
       <section class="pad">
@@ -165,6 +192,7 @@ PAGE = """
     const touchpad = document.getElementById('touchpad');
     const controls = document.querySelector('.controls');
     const textInput = document.getElementById('textInput');
+    const textHistory = document.getElementById('textHistory');
     const sendText = document.getElementById('sendText');
     let lastPoint = null;
     let tapPoints = [];
@@ -212,17 +240,61 @@ PAGE = """
       return post('/scroll', { dx, dy });
     }
 
+    function getTextHistory() {
+      return JSON.parse(localStorage.getItem('textHistory') || '[]');
+    }
+
+    function showTextHistory() {
+      textHistory.classList.add('visible');
+    }
+
+    function hideTextHistory() {
+      textHistory.classList.remove('visible');
+    }
+
+    function renderTextHistory() {
+      textHistory.replaceChildren(...getTextHistory().map(text => {
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.textContent = text;
+        item.addEventListener('pointerdown', event => event.preventDefault());
+        item.addEventListener('click', () => {
+          textInput.value = text;
+          textInput.focus();
+          showTextHistory();
+        });
+        return item;
+      }));
+    }
+
+    function saveTextHistory(text) {
+      const history = getTextHistory().filter(item => item !== text);
+      history.unshift(text);
+      localStorage.setItem('textHistory', JSON.stringify(history.slice(0, 10)));
+      renderTextHistory();
+    }
+
     async function pasteText() {
       const text = textInput.value;
       if (!text) return;
       await post('/paste', { text });
+      saveTextHistory(text);
       textInput.value = '';
     }
 
+    function deactivateTextInput() {
+      textInput.blur();
+      hideTextHistory();
+    }
+
+    renderTextHistory();
+    textInput.addEventListener('focus', showTextHistory);
+    sendText.addEventListener('pointerdown', deactivateTextInput);
     sendText.addEventListener('click', pasteText);
     textInput.addEventListener('keydown', event => {
       if (event.key === 'Enter') {
         event.preventDefault();
+        deactivateTextInput();
         pasteText();
       }
     });
@@ -246,6 +318,7 @@ PAGE = """
     document.querySelectorAll('button[data-key]').forEach(button => {
       button.addEventListener('pointerdown', event => {
         event.preventDefault();
+        deactivateTextInput();
         button.setPointerCapture(event.pointerId);
         start(button);
       });
@@ -269,6 +342,7 @@ PAGE = """
 
     touchpad.addEventListener('pointerdown', event => {
       event.preventDefault();
+      deactivateTextInput();
       touchpad.setPointerCapture(event.pointerId);
       touchpad.classList.add('active');
       activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
