@@ -5,6 +5,7 @@ from werkzeug.serving import make_server
 import pyautogui
 import pystray
 import secrets
+import socket
 import subprocess
 import threading
 
@@ -628,13 +629,7 @@ def paste():
     text = str(data.get("text", ""))[:5000]
     if not text:
         return {"ok": True}
-    subprocess.run(
-        ["powershell.exe", "-NoProfile", "-Command", "Set-Clipboard -Value ([Console]::In.ReadToEnd())"],
-        input=text,
-        text=True,
-        check=True,
-        creationflags=subprocess.CREATE_NO_WINDOW,
-    )
+    copy_to_clipboard(text)
     pyautogui.hotkey("ctrl", "v")
     return {"ok": True}
 
@@ -648,14 +643,43 @@ def create_tray_image():
     return image
 
 
+def get_lan_ip():
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.connect(("8.8.8.8", 80))
+            return sock.getsockname()[0]
+    except OSError:
+        return "127.0.0.1"
+
+
+def get_lan_url():
+    return f"http://{get_lan_ip()}:8000/"
+
+
+def copy_to_clipboard(text):
+    subprocess.run(
+        ["powershell.exe", "-NoProfile", "-Command", "Set-Clipboard -Value ([Console]::In.ReadToEnd())"],
+        input=text,
+        text=True,
+        check=True,
+        creationflags=subprocess.CREATE_NO_WINDOW,
+    )
+
+
 def run_server(server):
     print(f"Control4Computer {APP_VERSION} is running.")
     print(f"Open on this computer: http://127.0.0.1:8000/?token={TOKEN}")
-    print("Open on your phone: http://<computer-lan-ip>:8000/")
+    print(f"Open on your phone: {get_lan_url()}")
     server.serve_forever()
 
 
 def run_tray(server):
+    lan_url = get_lan_url()
+
+    def copy_address(icon, item):
+        copy_to_clipboard(lan_url)
+        log_event(f"tray copy address {lan_url}")
+
     def exit_app(icon, item):
         log_event("tray exit")
         icon.stop()
@@ -665,7 +689,11 @@ def run_tray(server):
         "Control4Computer",
         create_tray_image(),
         f"Control4Computer {APP_VERSION}",
-        pystray.Menu(pystray.MenuItem("退出", exit_app)),
+        pystray.Menu(
+            pystray.MenuItem(lan_url, None, enabled=False),
+            pystray.MenuItem("复制地址", copy_address),
+            pystray.MenuItem("退出", exit_app),
+        ),
     )
     icon.run()
 
