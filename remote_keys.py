@@ -9,6 +9,7 @@ import subprocess
 import threading
 
 app = Flask(__name__)
+APP_VERSION = "1.0"
 TOKEN = secrets.token_urlsafe(8)
 ALLOWED_KEYS = {"space", "enter", "esc", "up", "down", "left", "right", "volumedown", "volumeup", "backspace"}
 ALLOWED_BUTTONS = {"left", "right"}
@@ -26,7 +27,7 @@ PAGE = """
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-  <title>Remote Keys</title>
+  <title>Control4Computer 1.0</title>
   <style>
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     html, body {
@@ -648,7 +649,7 @@ def create_tray_image():
 
 
 def run_server(server):
-    print("Remote Keys is running.")
+    print(f"Control4Computer {APP_VERSION} is running.")
     print(f"Open on this computer: http://127.0.0.1:8000/?token={TOKEN}")
     print("Open on your phone: http://<computer-lan-ip>:8000/")
     server.serve_forever()
@@ -663,7 +664,7 @@ def run_tray(server):
     icon = pystray.Icon(
         "Control4Computer",
         create_tray_image(),
-        "Control4Computer",
+        f"Control4Computer {APP_VERSION}",
         pystray.Menu(pystray.MenuItem("退出", exit_app)),
     )
     icon.run()
