@@ -2,6 +2,7 @@ from flask import Flask, request, render_template_string, abort, redirect
 from datetime import datetime
 from PIL import Image, ImageDraw
 from werkzeug.serving import make_server
+import platform
 import pyautogui
 import pystray
 import secrets
@@ -676,7 +677,10 @@ def paste():
     if not text:
         return {"ok": True}
     copy_to_clipboard(text)
-    pyautogui.hotkey("ctrl", "v")
+    if platform.system() == "Darwin":
+        pyautogui.hotkey("command", "v")
+    else:
+        pyautogui.hotkey("ctrl", "v")
     return {"ok": True}
 
 
@@ -703,6 +707,10 @@ def get_lan_url():
 
 
 def copy_to_clipboard(text):
+    if platform.system() == "Darwin":
+        subprocess.run(["pbcopy"], input=text, text=True, check=True)
+        return
+
     subprocess.run(
         ["powershell.exe", "-NoProfile", "-Command", "Set-Clipboard -Value ([Console]::In.ReadToEnd())"],
         input=text,
@@ -729,7 +737,7 @@ def run_tray(server):
     def exit_app(icon, item):
         log_event("tray exit")
         icon.stop()
-        server.shutdown()
+        threading.Thread(target=server.shutdown, daemon=True).start()
 
     icon = pystray.Icon(
         "Control4Computer",
