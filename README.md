@@ -33,6 +33,27 @@ source .venv/Scripts/activate
 pip install -r requirements.txt
 ```
 
+## 打包 exe
+
+安装运行依赖和 PyInstaller：
+
+```bash
+pip install -r requirements.txt
+pip install pyinstaller
+```
+
+在项目根目录运行：
+
+```bash
+python -m PyInstaller --clean --noconfirm Control4Computer.spec
+```
+
+打包完成后，exe 文件会生成在：
+
+```text
+dist/Control4Computer.exe
+```
+
 ## 启动
 
 ### 双击启动
