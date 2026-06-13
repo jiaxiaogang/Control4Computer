@@ -11,11 +11,20 @@ import socket
 import subprocess
 import threading
 
+IS_MAC = platform.system() == "Darwin"
+if IS_MAC:
+    import AppKit
+    import Quartz
+
 app = Flask(__name__)
 APP_VERSION = "1.0"
 TOKEN = secrets.token_urlsafe(8)
 ALLOWED_KEYS = {"space", "enter", "esc", "up", "down", "left", "right", "volumedown", "volumeup", "backspace"}
 ALLOWED_BUTTONS = {"left", "right"}
+MAC_MEDIA_KEY_CODES = {
+    "volumeup": 0,
+    "volumedown": 1,
+}
 
 
 def log_event(message):
@@ -280,6 +289,9 @@ PAGE = """
     let twoFingerTap = null;
     let longPressTimer = null;
     let lastMoveVibrateAt = 0;
+    let pendingMove = { dx: 0, dy: 0 };
+    let moveInFlight = false;
+    let moveFlushTimer = null;
     let vibrationScale = Number(localStorage.getItem('vibrationScale')) || 1;
 
     function updateControlSize() {
@@ -333,9 +345,9 @@ PAGE = """
 
     function vibrateDuringMove() {
       const now = Date.now();
-      if (now - lastMoveVibrateAt < 90) return;
+      if (now - lastMoveVibrateAt < 250) return;
       lastMoveVibrateAt = now;
-      vibrate(50);
+      vibrate(20);
     }
 
     function doubleClickMouse() {
@@ -343,8 +355,27 @@ PAGE = """
       return post('/dclick');
     }
 
+    function flushMove() {
+      moveFlushTimer = null;
+      if (moveInFlight || (!pendingMove.dx && !pendingMove.dy)) return;
+      const dx = Math.max(-80, Math.min(80, pendingMove.dx));
+      const dy = Math.max(-80, Math.min(80, pendingMove.dy));
+      pendingMove = { dx: 0, dy: 0 };
+      moveInFlight = true;
+      post('/move', { dx, dy }).finally(() => {
+        moveInFlight = false;
+        if (pendingMove.dx || pendingMove.dy) scheduleMoveFlush();
+      });
+    }
+
+    function scheduleMoveFlush() {
+      if (!moveFlushTimer) moveFlushTimer = setTimeout(flushMove, 16);
+    }
+
     function moveMouse(dx, dy) {
-      return post('/move', { dx, dy });
+      pendingMove.dx += dx;
+      pendingMove.dy += dy;
+      scheduleMoveFlush();
     }
 
     function scrollMouse(dx, dy) {
@@ -757,19 +788,27 @@ def get_lan_url():
 
 
 def press_key(key):
-    if platform.system() == "Darwin" and key in {"volumeup", "volumedown"}:
-        direction = "+" if key == "volumeup" else "-"
-        subprocess.run(
-            [
-                "osascript",
-                "-e",
-                f"set volume output volume ((output volume of (get volume settings)) {direction} 5)",
-            ],
-            check=True,
-        )
+    if IS_MAC and key in MAC_MEDIA_KEY_CODES:
+        press_mac_media_key(MAC_MEDIA_KEY_CODES[key])
         return
 
     pyautogui.press(key)
+
+
+def press_mac_media_key(code):
+    for down in (True, False):
+        event = AppKit.NSEvent.otherEventWithType_location_modifierFlags_timestamp_windowNumber_context_subtype_data1_data2_(
+            Quartz.NSSystemDefined,
+            (0, 0),
+            0xA00 if down else 0xB00,
+            0,
+            0,
+            0,
+            8,
+            (code << 16) | ((0xA if down else 0xB) << 8),
+            -1,
+        )
+        Quartz.CGEventPost(0, event.CGEvent())
 
 
 def copy_to_clipboard(text):
