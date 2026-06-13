@@ -33,7 +33,27 @@ pip install -r requirements.txt
 
 ## 启动
 
-运行：
+### 双击启动
+
+在项目目录中双击：
+
+```text
+PCRun.bat
+```
+
+它会在后台启动服务，不会保留控制台窗口。如果项目目录下存在 `.venv` 虚拟环境，会优先使用 `.venv\Scripts\pythonw.exe`；否则依次尝试系统 `pyw`、`pythonw`、`python`。
+
+双击启动后，可以在浏览器打开：
+
+```text
+http://127.0.0.1:8000/
+```
+
+页面会显示本次启动生成的 token 链接，点击后进入控制页面。
+
+### 命令行启动
+
+也可以手动运行：
 
 ```bash
 python remote_keys.py
@@ -89,7 +109,19 @@ http://127.0.0.1:8000/?token=xxxx
 
 ## 停止
 
-回到运行 `python remote_keys.py` 的终端，按：
+### 双击停止
+
+在项目目录中双击：
+
+```text
+PCStop.bat
+```
+
+它会通过 PowerShell 停止正在运行的 `remote_keys.py` Python/Pythonw 进程。
+
+### 命令行停止
+
+如果是手动用命令行启动的，也可以回到运行 `python remote_keys.py` 的终端，按：
 
 ```text
 Ctrl+C
