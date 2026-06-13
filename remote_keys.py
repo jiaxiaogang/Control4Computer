@@ -1,4 +1,5 @@
 from flask import Flask, request, render_template_string, abort, redirect
+from datetime import datetime
 import pyautogui
 import secrets
 import subprocess
@@ -7,6 +8,13 @@ app = Flask(__name__)
 TOKEN = secrets.token_urlsafe(8)
 ALLOWED_KEYS = {"space", "enter", "esc", "up", "down", "left", "right", "volumedown", "volumeup", "backspace"}
 ALLOWED_BUTTONS = {"left", "right"}
+
+
+def log_event(message):
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with open("remote_keys.log", "a", encoding="utf-8") as log_file:
+        log_file.write(f"[{timestamp}] {message}\n")
+
 
 PAGE = """
 <!doctype html>
@@ -163,6 +171,18 @@ PAGE = """
       z-index: 3;
       opacity: .72;
     }
+    .reconnect-toggle {
+      position: absolute;
+      left: 18px;
+      bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+      width: 46px;
+      height: 46px;
+      border-radius: 14px;
+      background: rgba(16,20,24,.48);
+      font-size: 20px;
+      z-index: 3;
+      opacity: .72;
+    }
     .hint {
       color: #c4ced9;
       text-align: center;
@@ -177,7 +197,7 @@ PAGE = """
   <main>
     <div class="touchpad" id="touchpad">触摸板区域</div>
     <section class="text-send">
-      <input id="textInput" type="text" placeholder="输入要发送到电脑的内容">
+      <input id="textInput" type="search" placeholder="输入要发送到电脑的内容" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text">
       <button id="sendText" type="button">发送</button>
       <button id="backspace" type="button" data-key="backspace">回退</button>
       <div class="text-history" id="textHistory"></div>
@@ -196,17 +216,19 @@ PAGE = """
       </section>
       <div class="hint">单指：移动/点击；双指：滚动。</div>
     </div>
+    <button class="reconnect-toggle" id="reconnectToggle" type="button" aria-label="重连">↻</button>
     <button class="fullscreen-toggle" id="fullscreenToggle" type="button" aria-label="切换全屏">⛶</button>
   </main>
 
   <script>
-    const token = {{ token|tojson }};
+    let token = {{ token|tojson }};
     const timers = new Map();
     const touchpad = document.getElementById('touchpad');
     const controls = document.querySelector('.controls');
     const textInput = document.getElementById('textInput');
     const textHistory = document.getElementById('textHistory');
     const sendText = document.getElementById('sendText');
+    const reconnectToggle = document.getElementById('reconnectToggle');
     const fullscreenToggle = document.getElementById('fullscreenToggle');
     let lastPoint = null;
     let tapPoints = [];
@@ -326,6 +348,40 @@ PAGE = """
       fullscreenToggle.textContent = document.fullscreenElement ? '×' : '⛶';
     }
 
+    reconnectToggle.addEventListener('click', async () => {
+      deactivateTextInput();
+      timers.forEach(timer => clearInterval(timer));
+      timers.clear();
+      document.querySelectorAll('button.pressed').forEach(button => button.classList.remove('pressed'));
+      activePointers.clear();
+      lastPoint = null;
+      tapPoints = [];
+      scrollPoint = null;
+      clearLongPressTimer();
+      touchpad.classList.remove('active');
+      try {
+        const oldToken = token;
+        const reconnectResponse = await fetch(`/reconnect?token=${encodeURIComponent(token)}`, {
+          method: 'POST',
+          cache: 'no-store',
+        });
+        const reconnectResult = await reconnectResponse.json();
+        if (reconnectResult.token) {
+          token = reconnectResult.token;
+          history.replaceState(null, '', `/?token=${encodeURIComponent(token)}`);
+        }
+        const healthResponse = await fetch(`/health?token=${encodeURIComponent(token)}`, { cache: 'no-store' });
+        console.log('reconnect', {
+          oldToken,
+          newToken: token,
+          matched: reconnectResult.matched,
+          reconnectStatus: reconnectResponse.status,
+          healthStatus: healthResponse.status,
+        });
+      } catch (error) {
+        console.error('reconnect failed', error);
+      }
+    });
     fullscreenToggle.addEventListener('click', toggleFullscreen);
     document.addEventListener('fullscreenchange', updateFullscreenButton);
 
@@ -473,6 +529,23 @@ def index():
     if request.args.get("token") != TOKEN:
         return redirect(f"/?token={TOKEN}")
     return render_template_string(PAGE, token=TOKEN)
+
+
+@app.post("/reconnect")
+def reconnect():
+    old_token = request.args.get("token", "")
+    log_event(f"reconnect old_token={old_token} current_token={TOKEN} remote={request.remote_addr}")
+    return {"ok": True, "token": TOKEN, "matched": old_token == TOKEN}
+
+
+@app.get("/health")
+def health():
+    token = request.args.get("token", "")
+    ok = token == TOKEN
+    log_event(f"health token={token} current_token={TOKEN} ok={ok} remote={request.remote_addr}")
+    if not ok:
+        abort(403)
+    return {"ok": True}
 
 
 @app.post("/press/<key>")
