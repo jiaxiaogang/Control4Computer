@@ -1,8 +1,12 @@
 from flask import Flask, request, render_template_string, abort, redirect
 from datetime import datetime
+from PIL import Image, ImageDraw
+from werkzeug.serving import make_server
 import pyautogui
+import pystray
 import secrets
 import subprocess
+import threading
 
 app = Flask(__name__)
 TOKEN = secrets.token_urlsafe(8)
@@ -54,8 +58,8 @@ PAGE = """
       width: min(calc(100vw - 44px), 720px);
       transform: translateX(-50%);
       display: grid;
-      grid-template-columns: 2fr 1fr 1fr;
-      gap: 10px;
+      grid-template-columns: 3fr .8fr .8fr;
+      gap: 8px;
       z-index: 2;
     }
     .text-send input {
@@ -64,16 +68,17 @@ PAGE = """
       border-radius: 18px;
       background: rgba(16,20,24,.92);
       color: #fff;
-      font-size: 20px;
-      padding: 0 16px;
+      font-size: 16px;
+      padding: 0 14px;
       outline: none;
       box-shadow: 0 10px 26px rgba(0,0,0,.28);
     }
     .text-send input:focus { border-color: #3d8bfd; }
+    .text-send input::placeholder { font-size: 14px; }
     .text-send button {
       min-width: 0;
-      height: 58px;
-      font-size: 20px;
+      height: 40px;
+      font-size: 14px;
     }
     .text-history {
       grid-column: 1 / -1;
@@ -96,7 +101,7 @@ PAGE = """
       color: #fff;
       text-align: left;
       font-size: 16px;
-      font-weight: 500;
+      font-weight: 400;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -129,8 +134,8 @@ PAGE = """
       border-radius: clamp(14px, calc(var(--pad-size) * .04), 24px);
       background: rgba(38,49,61,.92);
       color: #fff;
-      font-size: clamp(28px, calc(var(--pad-size) * .12), 44px);
-      font-weight: 900;
+      font-size: clamp(24px, calc(var(--pad-size) * .095), 36px);
+      font-weight: 500;
       box-shadow: 0 8px 20px rgba(0,0,0,.34);
       user-select: none;
       touch-action: none;
@@ -138,15 +143,16 @@ PAGE = """
       backdrop-filter: blur(8px);
     }
     button:active, button.pressed { background: #3d8bfd; transform: translateY(1px); }
-    .esc { grid-column: 1; grid-row: 1; font-size: clamp(18px, calc(var(--pad-size) * .07), 28px); }
+    .esc { grid-column: 1; grid-row: 1; }
     .up { grid-column: 2; grid-row: 1; }
-    .space { grid-column: 3; grid-row: 1; font-size: clamp(16px, calc(var(--pad-size) * .055), 24px); }
+    .space { grid-column: 3; grid-row: 1; }
     .left { grid-column: 1; grid-row: 2; }
-    .enter { grid-column: 2; grid-row: 2; font-size: clamp(16px, calc(var(--pad-size) * .055), 24px); }
+    .enter { grid-column: 2; grid-row: 2; }
     .right { grid-column: 3; grid-row: 2; }
-    .volume-down { grid-column: 1; grid-row: 3; font-size: clamp(16px, calc(var(--pad-size) * .055), 24px); }
+    .volume-down { grid-column: 1; grid-row: 3; }
     .down { grid-column: 2; grid-row: 3; }
-    .volume-up { grid-column: 3; grid-row: 3; font-size: clamp(16px, calc(var(--pad-size) * .055), 24px); }
+    .volume-up { grid-column: 3; grid-row: 3; }
+    .esc, .space, .enter, .volume-down, .volume-up { font-size: clamp(14px, calc(var(--pad-size) * .045), 20px); }
     .touchpad {
       width: 100%;
       height: 100%;
@@ -237,6 +243,7 @@ PAGE = """
     let tapPoints = [];
     let activePointers = new Map();
     let scrollPoint = null;
+    let twoFingerTap = null;
     let longPressTimer = null;
 
     function updateControlSize() {
@@ -362,6 +369,7 @@ PAGE = """
       lastPoint = null;
       tapPoints = [];
       scrollPoint = null;
+      twoFingerTap = null;
       clearLongPressTimer();
       touchpad.classList.remove('active');
       try {
@@ -442,6 +450,7 @@ PAGE = """
         lastPoint = null;
         tapPoints = [];
         scrollPoint = averagePoint();
+        twoFingerTap = { ...scrollPoint, moved: false };
         return;
       }
       lastPoint = {
@@ -468,6 +477,9 @@ PAGE = """
       if (activePointers.size >= 2) {
         clearLongPressTimer();
         const point = averagePoint();
+        if (twoFingerTap && Math.hypot(point.x - twoFingerTap.x, point.y - twoFingerTap.y) > 10) {
+          twoFingerTap.moved = true;
+        }
         if (scrollPoint) {
           const dx = Math.round((point.x - scrollPoint.x) * 5);
           const dy = Math.round((point.y - scrollPoint.y) * 5);
@@ -477,8 +489,8 @@ PAGE = """
         return;
       }
       if (!lastPoint) return;
-      const dx = Math.round((event.clientX - lastPoint.x) * 1.7);
-      const dy = Math.round((event.clientY - lastPoint.y) * 1.7);
+      const dx = Math.round((event.clientX - lastPoint.x) * 5.1);
+      const dy = Math.round((event.clientY - lastPoint.y) * 5.1);
       const moved = lastPoint.moved || Math.hypot(event.clientX - lastPoint.startX, event.clientY - lastPoint.startY) > 8;
       lastPoint = {
         ...lastPoint,
@@ -514,9 +526,14 @@ PAGE = """
         scrollPoint = averagePoint();
         return;
       }
-      if (event?.type === 'pointerup' && lastPoint && !lastPoint.moved && !lastPoint.longPressed) handleTouchpadTap();
+      if (event?.type === 'pointerup' && twoFingerTap && !twoFingerTap.moved && !lastPoint) {
+        clickMouse('right');
+      } else if (event?.type === 'pointerup' && lastPoint && !lastPoint.moved && !lastPoint.longPressed) {
+        handleTouchpadTap();
+      }
       lastPoint = null;
       scrollPoint = null;
+      twoFingerTap = null;
       if (activePointers.size === 0) touchpad.classList.remove('active');
     }
 
@@ -621,9 +638,39 @@ def paste():
     return {"ok": True}
 
 
-if __name__ == "__main__":
-    pyautogui.PAUSE = 0
+def create_tray_image():
+    image = Image.new("RGBA", (64, 64), (16, 20, 24, 0))
+    draw = ImageDraw.Draw(image)
+    draw.rounded_rectangle((8, 8, 56, 56), radius=12, fill=(61, 139, 253, 255))
+    draw.rectangle((22, 18, 42, 40), fill=(255, 255, 255, 255))
+    draw.polygon([(18, 40), (46, 40), (40, 50), (24, 50)], fill=(255, 255, 255, 255))
+    return image
+
+
+def run_server(server):
     print("Remote Keys is running.")
     print(f"Open on this computer: http://127.0.0.1:8000/?token={TOKEN}")
     print("Open on your phone: http://<computer-lan-ip>:8000/")
-    app.run(host="0.0.0.0", port=8000)
+    server.serve_forever()
+
+
+def run_tray(server):
+    def exit_app(icon, item):
+        log_event("tray exit")
+        icon.stop()
+        server.shutdown()
+
+    icon = pystray.Icon(
+        "Control4Computer",
+        create_tray_image(),
+        "Control4Computer",
+        pystray.Menu(pystray.MenuItem("退出", exit_app)),
+    )
+    icon.run()
+
+
+if __name__ == "__main__":
+    pyautogui.PAUSE = 0
+    server = make_server("0.0.0.0", 8000, app, threaded=True)
+    threading.Thread(target=run_server, args=(server,), daemon=True).start()
+    run_tray(server)
