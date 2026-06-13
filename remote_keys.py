@@ -79,28 +79,31 @@ PAGE = """
       grid-column: 1 / -1;
       display: none;
       max-height: 220px;
-      overflow-y: auto;
+      overflow-y: scroll;
+      touch-action: pan-y;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
       border: 1px solid rgba(255,255,255,.1);
       border-radius: 18px;
       background: rgba(16,20,24,.94);
       box-shadow: 0 10px 26px rgba(0,0,0,.28);
     }
     .text-history.visible:not(:empty) { display: block; }
-    .text-history button {
+    .text-history-item {
       width: 100%;
-      height: 42px;
-      border: 0;
-      border-radius: 0;
-      background: transparent;
-      box-shadow: none;
+      min-height: 42px;
+      padding: 10px 16px;
+      color: #fff;
       text-align: left;
       font-size: 16px;
       font-weight: 500;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      backdrop-filter: none;
+      user-select: none;
+      touch-action: pan-y;
     }
+    .text-history-item:active { background: rgba(61,139,253,.3); }
     .controls {
       --control-edge-gap: 22px;
       --pad-size: calc(100vw - var(--control-edge-gap) * 2);
@@ -290,10 +293,9 @@ PAGE = """
 
     function renderTextHistory() {
       textHistory.replaceChildren(...getTextHistory().map(text => {
-        const item = document.createElement('button');
-        item.type = 'button';
+        const item = document.createElement('div');
+        item.className = 'text-history-item';
         item.textContent = text;
-        item.addEventListener('pointerdown', event => event.preventDefault());
         item.addEventListener('click', () => {
           textInput.value = text;
           textInput.focus();
@@ -324,6 +326,9 @@ PAGE = """
     }
 
     renderTextHistory();
+    textHistory.addEventListener('pointerdown', event => event.stopPropagation());
+    textHistory.addEventListener('pointermove', event => event.stopPropagation());
+    textHistory.addEventListener('pointerup', event => event.stopPropagation());
     textInput.addEventListener('focus', showTextHistory);
     sendText.addEventListener('pointerdown', deactivateTextInput);
     sendText.addEventListener('click', pasteText);
