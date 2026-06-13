@@ -247,6 +247,7 @@ PAGE = """
     let scrollPoint = null;
     let twoFingerTap = null;
     let longPressTimer = null;
+    let lastMoveVibrateAt = 0;
 
     function updateControlSize() {
       const viewportWidth = window.visualViewport?.width || window.innerWidth;
@@ -273,10 +274,23 @@ PAGE = """
     }
 
     function clickMouse(button) {
+      vibrate();
       return post(`/click/${button}`);
     }
 
+    function vibrate(duration = 12) {
+      if (navigator.vibrate) navigator.vibrate(duration);
+    }
+
+    function vibrateDuringMove() {
+      const now = Date.now();
+      if (now - lastMoveVibrateAt < 90) return;
+      lastMoveVibrateAt = now;
+      vibrate(8);
+    }
+
     function doubleClickMouse() {
+      vibrate();
       return post('/dclick');
     }
 
@@ -306,6 +320,7 @@ PAGE = """
         item.className = 'text-history-item';
         item.textContent = text;
         item.addEventListener('click', () => {
+          vibrate();
           textInput.value = text;
           textInput.focus();
           showTextHistory();
@@ -324,6 +339,7 @@ PAGE = """
     async function pasteText() {
       const text = textInput.value;
       if (!text) return;
+      vibrate();
       await post('/paste', { text });
       saveTextHistory(text);
       textInput.value = '';
@@ -350,6 +366,7 @@ PAGE = """
     });
 
     async function toggleFullscreen() {
+      vibrate();
       deactivateTextInput();
       if (document.fullscreenElement) {
         await document.exitFullscreen();
@@ -363,6 +380,7 @@ PAGE = """
     }
 
     reconnectToggle.addEventListener('click', async () => {
+      vibrate();
       deactivateTextInput();
       timers.forEach(timer => clearInterval(timer));
       timers.clear();
@@ -403,6 +421,7 @@ PAGE = """
     function start(button) {
       const key = button.dataset.key;
       if (timers.has(button)) return;
+      vibrate();
       button.classList.add('pressed');
       press(key);
       if (key === 'enter' || key === 'esc') return;
@@ -485,7 +504,10 @@ PAGE = """
         if (scrollPoint) {
           const dx = Math.round((point.x - scrollPoint.x) * 5);
           const dy = Math.round((point.y - scrollPoint.y) * 5);
-          if (Math.abs(dx) >= 4 || Math.abs(dy) >= 4) scrollMouse(dx, dy);
+          if (Math.abs(dx) >= 4 || Math.abs(dy) >= 4) {
+            vibrateDuringMove();
+            scrollMouse(dx, dy);
+          }
         }
         scrollPoint = point;
         return;
@@ -501,7 +523,10 @@ PAGE = """
         moved,
       };
       if (moved) clearLongPressTimer();
-      if (dx || dy) moveMouse(dx, dy);
+      if (dx || dy) {
+        vibrateDuringMove();
+        moveMouse(dx, dy);
+      }
     });
 
     function handleTouchpadTap() {
