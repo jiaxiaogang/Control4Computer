@@ -671,6 +671,7 @@ def run_tray(server):
 
 if __name__ == "__main__":
     pyautogui.PAUSE = 0
+    pyautogui.FAILSAFE = False
     server = make_server("0.0.0.0", 8000, app, threaded=True)
     threading.Thread(target=run_server, args=(server,), daemon=True).start()
     run_tray(server)
