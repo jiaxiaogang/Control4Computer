@@ -623,7 +623,7 @@ def health():
 def press(key):
     if request.args.get("token") != TOKEN or key not in ALLOWED_KEYS:
         abort(403)
-    pyautogui.press(key)
+    press_key(key)
     return {"ok": True}
 
 
@@ -704,6 +704,22 @@ def get_lan_ip():
 
 def get_lan_url():
     return f"http://{get_lan_ip()}:8000/"
+
+
+def press_key(key):
+    if platform.system() == "Darwin" and key in {"volumeup", "volumedown"}:
+        direction = "+" if key == "volumeup" else "-"
+        subprocess.run(
+            [
+                "osascript",
+                "-e",
+                f"set volume output volume ((output volume of (get volume settings)) {direction} 5)",
+            ],
+            check=True,
+        )
+        return
+
+    pyautogui.press(key)
 
 
 def copy_to_clipboard(text):
