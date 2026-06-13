@@ -60,10 +60,12 @@ PAGE = """
       font-size: 20px;
     }
     .controls {
+      --pad-size: 200px;
+      --pad-gap: clamp(6px, calc(var(--pad-size) * .06), 10px);
       position: absolute;
       left: 50%;
       bottom: 18px;
-      width: min(calc(100vw - 24px), 720px);
+      width: var(--pad-size);
       transform: translateX(-50%);
       display: grid;
       gap: 10px;
@@ -73,32 +75,32 @@ PAGE = """
     .pad {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      grid-template-rows: repeat(3, clamp(72px, 12vh, 96px));
-      gap: 12px;
+      grid-template-rows: repeat(3, calc((var(--pad-size) - var(--pad-gap) * 2) / 3));
+      gap: var(--pad-gap);
     }
     button {
       border: 1px solid rgba(255,255,255,.08);
-      border-radius: 22px;
+      border-radius: clamp(10px, calc(var(--pad-size) * .07), 14px);
       background: rgba(38,49,61,.92);
       color: #fff;
-      font-size: 38px;
+      font-size: clamp(24px, calc(var(--pad-size) * .16), 32px);
       font-weight: 900;
-      box-shadow: 0 10px 26px rgba(0,0,0,.34);
+      box-shadow: 0 8px 20px rgba(0,0,0,.34);
       user-select: none;
       touch-action: none;
       pointer-events: auto;
       backdrop-filter: blur(8px);
     }
     button:active, button.pressed { background: #3d8bfd; transform: translateY(1px); }
-    .esc { grid-column: 1; grid-row: 1; font-size: 24px; }
+    .esc { grid-column: 1; grid-row: 1; font-size: clamp(14px, calc(var(--pad-size) * .1), 20px); }
     .up { grid-column: 2; grid-row: 1; }
-    .space { grid-column: 3; grid-row: 1; font-size: 22px; }
+    .space { grid-column: 3; grid-row: 1; font-size: clamp(12px, calc(var(--pad-size) * .08), 16px); }
     .left { grid-column: 1; grid-row: 2; }
-    .enter { grid-column: 2; grid-row: 2; font-size: 22px; }
+    .enter { grid-column: 2; grid-row: 2; font-size: clamp(12px, calc(var(--pad-size) * .08), 16px); }
     .right { grid-column: 3; grid-row: 2; }
-    .volume-down { grid-column: 1; grid-row: 3; font-size: 22px; }
+    .volume-down { grid-column: 1; grid-row: 3; font-size: clamp(12px, calc(var(--pad-size) * .08), 16px); }
     .down { grid-column: 2; grid-row: 3; }
-    .volume-up { grid-column: 3; grid-row: 3; font-size: 22px; }
+    .volume-up { grid-column: 3; grid-row: 3; font-size: clamp(12px, calc(var(--pad-size) * .08), 16px); }
     .touchpad {
       width: 100%;
       height: 100%;
@@ -151,11 +153,23 @@ PAGE = """
     const token = {{ token|tojson }};
     const timers = new Map();
     const touchpad = document.getElementById('touchpad');
+    const controls = document.querySelector('.controls');
     const textInput = document.getElementById('textInput');
     const sendText = document.getElementById('sendText');
     let lastPoint = null;
     let tapPoints = [];
     let longPressTimer = null;
+
+    function updateControlSize() {
+      const viewportWidth = window.visualViewport?.width || window.innerWidth;
+      const screenWidth = Math.min(screen.width || viewportWidth, screen.availWidth || viewportWidth);
+      const width = Math.min(viewportWidth, screenWidth);
+      controls.style.setProperty('--pad-size', `${Math.round(Math.min(width * 0.6, 200))}px`);
+    }
+
+    updateControlSize();
+    window.addEventListener('resize', updateControlSize);
+    window.visualViewport?.addEventListener('resize', updateControlSize);
 
     async function post(path, body) {
       await fetch(`${path}?token=${encodeURIComponent(token)}`, {
