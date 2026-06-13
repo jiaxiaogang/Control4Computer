@@ -1,5 +1,6 @@
 from flask import Flask, request, render_template_string, abort, redirect
 from datetime import datetime
+from time import perf_counter, time
 from PIL import Image, ImageDraw
 from werkzeug.serving import make_server
 import platform
@@ -21,6 +22,26 @@ def log_event(message):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     with open("remote_keys.log", "a", encoding="utf-8") as log_file:
         log_file.write(f"[{timestamp}] {message}\n")
+
+
+def request_diag_start():
+    return perf_counter()
+
+
+def log_request_diag(name, start, detail=""):
+    elapsed_ms = (perf_counter() - start) * 1000
+    sent_at = request.headers.get("X-Client-Sent-At", "")
+    seq = request.headers.get("X-Client-Seq", "")
+    inflight = request.headers.get("X-Client-Inflight", "")
+    age = ""
+    if sent_at:
+        try:
+            age = f" client_age_ms={(time() * 1000 - float(sent_at)):.1f}"
+        except ValueError:
+            age = f" client_age_invalid={sent_at}"
+    log_event(
+        f"diag {name} seq={seq} inflight_at_send={inflight} elapsed_ms={elapsed_ms:.1f}{age} remote={request.remote_addr} {detail}".strip()
+    )
 
 
 PAGE = """
@@ -273,12 +294,28 @@ PAGE = """
     window.addEventListener('resize', updateControlSize);
     window.visualViewport?.addEventListener('resize', updateControlSize);
 
+    let requestSeq = 0;
+    let inflightRequests = 0;
+
     async function post(path, body) {
-      await fetch(`${path}?token=${encodeURIComponent(token)}`, {
-        method: 'POST',
-        headers: body ? { 'Content-Type': 'application/json' } : undefined,
-        body: body ? JSON.stringify(body) : undefined,
-      });
+      const seq = ++requestSeq;
+      const sentAt = Date.now();
+      const inflightAtSend = inflightRequests;
+      inflightRequests += 1;
+      try {
+        await fetch(`${path}?token=${encodeURIComponent(token)}`, {
+          method: 'POST',
+          headers: {
+            'X-Client-Sent-At': String(sentAt),
+            'X-Client-Seq': String(seq),
+            'X-Client-Inflight': String(inflightAtSend),
+            ...(body ? { 'Content-Type': 'application/json' } : {}),
+          },
+          body: body ? JSON.stringify(body) : undefined,
+        });
+      } finally {
+        inflightRequests -= 1;
+      }
     }
 
     function press(key) {
@@ -621,25 +658,30 @@ def health():
 
 @app.post("/press/<key>")
 def press(key):
+    start = request_diag_start()
     if request.args.get("token") != TOKEN or key not in ALLOWED_KEYS:
         abort(403)
     press_key(key)
+    log_request_diag("press", start, f"key={key}")
     return {"ok": True}
 
 
 @app.post("/move")
 def move():
+    start = request_diag_start()
     if request.args.get("token") != TOKEN:
         abort(403)
     data = request.get_json() or {}
     dx = max(-80, min(80, int(data.get("dx", 0))))
     dy = max(-80, min(80, int(data.get("dy", 0))))
     pyautogui.moveRel(dx, dy, duration=0)
+    log_request_diag("move", start, f"dx={dx} dy={dy}")
     return {"ok": True}
 
 
 @app.post("/scroll")
 def scroll():
+    start = request_diag_start()
     if request.args.get("token") != TOKEN:
         abort(403)
     data = request.get_json() or {}
@@ -649,38 +691,46 @@ def scroll():
         pyautogui.scroll(-dy)
     if dx:
         pyautogui.hscroll(dx)
+    log_request_diag("scroll", start, f"dx={dx} dy={dy}")
     return {"ok": True}
 
 
 @app.post("/click/<button>")
 def click(button):
+    start = request_diag_start()
     if request.args.get("token") != TOKEN or button not in ALLOWED_BUTTONS:
         abort(403)
     pyautogui.click(button=button)
+    log_request_diag("click", start, f"button={button}")
     return {"ok": True}
 
 
 @app.post("/dclick")
 def double_click():
+    start = request_diag_start()
     if request.args.get("token") != TOKEN:
         abort(403)
     pyautogui.doubleClick()
+    log_request_diag("dclick", start)
     return {"ok": True}
 
 
 @app.post("/paste")
 def paste():
+    start = request_diag_start()
     if request.args.get("token") != TOKEN:
         abort(403)
     data = request.get_json() or {}
     text = str(data.get("text", ""))[:5000]
     if not text:
+        log_request_diag("paste", start, "empty=true")
         return {"ok": True}
     copy_to_clipboard(text)
     if platform.system() == "Darwin":
         pyautogui.hotkey("command", "v")
     else:
         pyautogui.hotkey("ctrl", "v")
+    log_request_diag("paste", start, f"chars={len(text)}")
     return {"ok": True}
 
 
