@@ -1,6 +1,7 @@
 from flask import Flask, request, render_template_string, abort, redirect
 import pyautogui
 import secrets
+import subprocess
 
 app = Flask(__name__)
 TOKEN = secrets.token_urlsafe(8)
@@ -30,6 +31,34 @@ PAGE = """
       position: relative;
       padding: 12px;
     }
+    .text-send {
+      position: absolute;
+      left: 50%;
+      top: 18px;
+      width: min(calc(100vw - 24px), 720px);
+      transform: translateX(-50%);
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      z-index: 2;
+    }
+    .text-send input {
+      min-width: 0;
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: 18px;
+      background: rgba(16,20,24,.92);
+      color: #fff;
+      font-size: 20px;
+      padding: 0 16px;
+      outline: none;
+      box-shadow: 0 10px 26px rgba(0,0,0,.28);
+    }
+    .text-send input:focus { border-color: #3d8bfd; }
+    .text-send button {
+      min-width: 112px;
+      height: 58px;
+      font-size: 20px;
+    }
     .controls {
       position: absolute;
       left: 50%;
@@ -39,6 +68,7 @@ PAGE = """
       display: grid;
       gap: 10px;
       pointer-events: none;
+      z-index: 2;
     }
     .pad {
       display: grid;
@@ -97,6 +127,10 @@ PAGE = """
 <body>
   <main>
     <div class="touchpad" id="touchpad">触摸板区域</div>
+    <section class="text-send">
+      <input id="textInput" type="text" placeholder="输入要发送到电脑的内容">
+      <button id="sendText" type="button">发送</button>
+    </section>
     <div class="controls">
       <section class="pad">
         <button class="esc" data-key="esc">ESC</button>
@@ -117,6 +151,8 @@ PAGE = """
     const token = {{ token|tojson }};
     const timers = new Map();
     const touchpad = document.getElementById('touchpad');
+    const textInput = document.getElementById('textInput');
+    const sendText = document.getElementById('sendText');
     let lastPoint = null;
     let tapPoints = [];
     let longPressTimer = null;
@@ -144,6 +180,21 @@ PAGE = """
     function moveMouse(dx, dy) {
       return post('/move', { dx, dy });
     }
+
+    async function pasteText() {
+      const text = textInput.value;
+      if (!text) return;
+      await post('/paste', { text });
+      textInput.value = '';
+    }
+
+    sendText.addEventListener('click', pasteText);
+    textInput.addEventListener('keydown', event => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        pasteText();
+      }
+    });
 
     function start(button) {
       const key = button.dataset.key;
@@ -289,9 +340,28 @@ def double_click():
     return {"ok": True}
 
 
+@app.post("/paste")
+def paste():
+    if request.args.get("token") != TOKEN:
+        abort(403)
+    data = request.get_json() or {}
+    text = str(data.get("text", ""))[:5000]
+    if not text:
+        return {"ok": True}
+    subprocess.run(
+        ["powershell.exe", "-NoProfile", "-Command", "Set-Clipboard -Value ([Console]::In.ReadToEnd())"],
+        input=text,
+        text=True,
+        check=True,
+        creationflags=subprocess.CREATE_NO_WINDOW,
+    )
+    pyautogui.hotkey("ctrl", "v")
+    return {"ok": True}
+
+
 if __name__ == "__main__":
     pyautogui.PAUSE = 0
     print("Remote Keys is running.")
     print(f"Open on this computer: http://127.0.0.1:8000/?token={TOKEN}")
-    print("Open on your phone: http://<computer-lan-ip>:8000/ then tap the token link")
+    print("Open on your phone: http://<computer-lan-ip>:8000/")
     app.run(host="0.0.0.0", port=8000)
