@@ -261,7 +261,7 @@ PAGE = """
         <button class="down" data-key="down">↓</button>
         <button class="volume-up" data-key="volumeup">VOL +</button>
       </section>
-      <div class="hint">单指：移动/点击；双指：滚动；三指左右滑：切换工作区。</div>
+      <div class="hint">单指：移动/点击；双指：滚动；三指左右滑：切换工作区；三指上滑：多窗口选择。</div>
     </div>
     <button class="reconnect-toggle" id="reconnectToggle" type="button" aria-label="重连">↻</button>
     <div class="floating-actions">
@@ -374,6 +374,11 @@ PAGE = """
     function switchWorkspace(direction) {
       vibrate(35);
       return post('/workspace', { direction });
+    }
+
+    function showWindowOverview() {
+      vibrate(35);
+      return post('/window-overview');
     }
 
     function getTextHistory() {
@@ -599,6 +604,9 @@ PAGE = """
           if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 1.5) {
             threeFingerSwipe.triggered = true;
             switchWorkspace(dx > 0 ? 'right' : 'left');
+          } else if (dy < -70 && Math.abs(dy) > Math.abs(dx) * 1.5) {
+            threeFingerSwipe.triggered = true;
+            showWindowOverview();
           }
         }
         return;
@@ -762,6 +770,19 @@ def workspace():
     elif IS_WINDOWS:
         pyautogui.hotkey("ctrl", "win", "left" if direction == "right" else "right")
     log_request_diag("workspace", start, f"direction={direction}")
+    return {"ok": True}
+
+
+@app.post("/window-overview")
+def window_overview():
+    start = request_diag_start()
+    if request.args.get("token") != TOKEN:
+        abort(403)
+    if IS_MAC:
+        pyautogui.press("f3")
+    elif IS_WINDOWS:
+        pyautogui.hotkey("win", "tab")
+    log_request_diag("window_overview", start)
     return {"ok": True}
 
 
