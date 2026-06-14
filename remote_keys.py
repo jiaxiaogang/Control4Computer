@@ -289,9 +289,7 @@ PAGE = """
     let twoFingerTap = null;
     let longPressTimer = null;
     let lastMoveVibrateAt = 0;
-    let pendingMove = { dx: 0, dy: 0 };
-    let moveInFlight = false;
-    let moveFlushTimer = null;
+    let moveController = null;
     let vibrationScale = Number(localStorage.getItem('vibrationScale')) || 1;
 
     function updateControlSize() {
@@ -309,7 +307,7 @@ PAGE = """
     let requestSeq = 0;
     let inflightRequests = 0;
 
-    async function post(path, body) {
+    async function post(path, body, options = {}) {
       const seq = ++requestSeq;
       const sentAt = Date.now();
       const inflightAtSend = inflightRequests;
@@ -324,7 +322,10 @@ PAGE = """
             ...(body ? { 'Content-Type': 'application/json' } : {}),
           },
           body: body ? JSON.stringify(body) : undefined,
+          signal: options.signal,
         });
+      } catch (error) {
+        if (error.name !== 'AbortError') throw error;
       } finally {
         inflightRequests -= 1;
       }
@@ -355,27 +356,13 @@ PAGE = """
       return post('/dclick');
     }
 
-    function flushMove() {
-      moveFlushTimer = null;
-      if (moveInFlight || (!pendingMove.dx && !pendingMove.dy)) return;
-      const dx = Math.max(-80, Math.min(80, pendingMove.dx));
-      const dy = Math.max(-80, Math.min(80, pendingMove.dy));
-      pendingMove = { dx: 0, dy: 0 };
-      moveInFlight = true;
-      post('/move', { dx, dy }).finally(() => {
-        moveInFlight = false;
-        if (pendingMove.dx || pendingMove.dy) scheduleMoveFlush();
-      });
-    }
-
-    function scheduleMoveFlush() {
-      if (!moveFlushTimer) moveFlushTimer = setTimeout(flushMove, 16);
-    }
-
     function moveMouse(dx, dy) {
-      pendingMove.dx += dx;
-      pendingMove.dy += dy;
-      scheduleMoveFlush();
+      if (moveController) moveController.abort();
+      moveController = new AbortController();
+      const controller = moveController;
+      post('/move', { dx, dy }, { signal: controller.signal }).finally(() => {
+        if (moveController === controller) moveController = null;
+      });
     }
 
     function scrollMouse(dx, dy) {
