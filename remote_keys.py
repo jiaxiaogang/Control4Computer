@@ -12,6 +12,7 @@ import subprocess
 import threading
 
 IS_MAC = platform.system() == "Darwin"
+IS_WINDOWS = platform.system() == "Windows"
 if IS_MAC:
     import AppKit
     import Quartz
@@ -260,7 +261,7 @@ PAGE = """
         <button class="down" data-key="down">↓</button>
         <button class="volume-up" data-key="volumeup">VOL +</button>
       </section>
-      <div class="hint">单指：移动/点击；双指：滚动。</div>
+      <div class="hint">单指：移动/点击；双指：滚动；三指左右滑：切换工作区。</div>
     </div>
     <button class="reconnect-toggle" id="reconnectToggle" type="button" aria-label="重连">↻</button>
     <div class="floating-actions">
@@ -287,6 +288,7 @@ PAGE = """
     let activePointers = new Map();
     let scrollPoint = null;
     let twoFingerTap = null;
+    let threeFingerSwipe = null;
     let longPressTimer = null;
     let lastMoveVibrateAt = 0;
     let moveController = null;
@@ -367,6 +369,11 @@ PAGE = """
 
     function scrollMouse(dx, dy) {
       return post('/scroll', { dx, dy });
+    }
+
+    function switchWorkspace(direction) {
+      vibrate(35);
+      return post('/workspace', { direction });
     }
 
     function getTextHistory() {
@@ -543,12 +550,23 @@ PAGE = """
       touchpad.setPointerCapture(event.pointerId);
       touchpad.classList.add('active');
       activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-      if (activePointers.size >= 2) {
+      if (activePointers.size >= 3) {
+        clearLongPressTimer();
+        lastPoint = null;
+        tapPoints = [];
+        scrollPoint = null;
+        twoFingerTap = null;
+        const point = averagePoint();
+        threeFingerSwipe = { ...point, triggered: false };
+        return;
+      }
+      if (activePointers.size === 2) {
         clearLongPressTimer();
         lastPoint = null;
         tapPoints = [];
         scrollPoint = averagePoint();
         twoFingerTap = { ...scrollPoint, moved: false };
+        threeFingerSwipe = null;
         return;
       }
       lastPoint = {
@@ -572,7 +590,20 @@ PAGE = """
       if (!activePointers.has(event.pointerId)) return;
       event.preventDefault();
       activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-      if (activePointers.size >= 2) {
+      if (activePointers.size >= 3) {
+        clearLongPressTimer();
+        const point = averagePoint();
+        if (threeFingerSwipe && !threeFingerSwipe.triggered) {
+          const dx = point.x - threeFingerSwipe.x;
+          const dy = point.y - threeFingerSwipe.y;
+          if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+            threeFingerSwipe.triggered = true;
+            switchWorkspace(dx > 0 ? 'right' : 'left');
+          }
+        }
+        return;
+      }
+      if (activePointers.size === 2) {
         clearLongPressTimer();
         const point = averagePoint();
         if (twoFingerTap && Math.hypot(point.x - twoFingerTap.x, point.y - twoFingerTap.y) > 10) {
@@ -626,7 +657,10 @@ PAGE = """
     function stopTouchpad(event) {
       clearLongPressTimer();
       activePointers.delete(event.pointerId);
-      if (activePointers.size >= 2) {
+      if (activePointers.size >= 3) {
+        return;
+      }
+      if (activePointers.size === 2) {
         scrollPoint = averagePoint();
         return;
       }
@@ -638,6 +672,7 @@ PAGE = """
       lastPoint = null;
       scrollPoint = null;
       twoFingerTap = null;
+      threeFingerSwipe = null;
       if (activePointers.size === 0) touchpad.classList.remove('active');
     }
 
@@ -710,6 +745,23 @@ def scroll():
     if dx:
         pyautogui.hscroll(dx)
     log_request_diag("scroll", start, f"dx={dx} dy={dy}")
+    return {"ok": True}
+
+
+@app.post("/workspace")
+def workspace():
+    start = request_diag_start()
+    if request.args.get("token") != TOKEN:
+        abort(403)
+    data = request.get_json() or {}
+    direction = data.get("direction")
+    if direction not in {"left", "right"}:
+        abort(400)
+    if IS_MAC:
+        pyautogui.hotkey("ctrl", "left" if direction == "right" else "right")
+    elif IS_WINDOWS:
+        pyautogui.hotkey("ctrl", "win", "left" if direction == "right" else "right")
+    log_request_diag("workspace", start, f"direction={direction}")
     return {"ok": True}
 
 
