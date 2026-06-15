@@ -178,12 +178,12 @@ PAGE = """
     button:active, button.pressed { background: #3d8bfd; transform: translateY(1px); }
     .esc { grid-column: 1; grid-row: 1; }
     .up { grid-column: 2; grid-row: 1; }
-    .space { grid-column: 3; grid-row: 1; }
+    .enter { grid-column: 3; grid-row: 1; }
     .left { grid-column: 1; grid-row: 2; }
-    .enter { grid-column: 2; grid-row: 2; }
+    .down { grid-column: 2; grid-row: 2; }
     .right { grid-column: 3; grid-row: 2; }
     .volume-down { grid-column: 1; grid-row: 3; }
-    .down { grid-column: 2; grid-row: 3; }
+    .space { grid-column: 2; grid-row: 3; }
     .volume-up { grid-column: 3; grid-row: 3; }
     .esc, .space, .enter, .volume-down, .volume-up { font-size: clamp(14px, calc(var(--pad-size) * .045), 20px); }
     .touchpad {
@@ -784,7 +784,7 @@ def scroll():
     dx = max(-120, min(120, int(data.get("dx", 0))))
     dy = max(-120, min(120, int(data.get("dy", 0))))
     if dy:
-        pyautogui.scroll(-dy)
+        pyautogui.scroll(dy if IS_MAC else -dy)
     if dx:
         pyautogui.hscroll(dx)
     log_request_diag("scroll", start, f"dx={dx} dy={dy}")
