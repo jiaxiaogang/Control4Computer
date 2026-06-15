@@ -238,6 +238,35 @@ PAGE = """
       text-shadow: 0 2px 8px rgba(0,0,0,.65);
       pointer-events: none;
     }
+    @media (orientation: landscape) {
+      .text-send {
+        left: 18px;
+        top: 12px;
+        width: min(calc(100vw - var(--pad-size) - 58px), 620px);
+        transform: none;
+      }
+      .controls {
+        right: calc(18px + env(safe-area-inset-right, 0px));
+        bottom: 50%;
+        left: auto;
+        transform: translateY(50%);
+      }
+      .pad {
+        grid-template-rows: repeat(3, calc((var(--pad-size) - var(--pad-gap) * 2) / 5));
+      }
+      button {
+        font-size: clamp(20px, calc(var(--pad-size) * .075), 30px);
+      }
+      .esc, .space, .enter, .volume-down, .volume-up {
+        font-size: clamp(12px, calc(var(--pad-size) * .038), 18px);
+      }
+      .hint {
+        font-size: 12px;
+      }
+      .floating-actions {
+        right: calc(var(--pad-size) + 36px + env(safe-area-inset-right, 0px));
+      }
+    }
   </style>
 </head>
 <body>
@@ -302,10 +331,13 @@ PAGE = """
 
     function updateControlSize() {
       const viewportWidth = window.visualViewport?.width || window.innerWidth;
+      const viewportHeight = window.visualViewport?.height || window.innerHeight;
       const screenWidth = Math.min(screen.width || viewportWidth, screen.availWidth || viewportWidth);
-      const width = Math.min(viewportWidth, screenWidth);
+      const portraitWidth = Math.min(viewportWidth, screenWidth);
       const controlEdgeGap = 22;
-      controls.style.setProperty('--pad-size', `${Math.round(Math.max(width - controlEdgeGap * 2, 240))}px`);
+      const landscape = viewportWidth > viewportHeight;
+      const availableSize = landscape ? Math.min(viewportHeight - controlEdgeGap * 2, viewportWidth * 0.38) : portraitWidth - controlEdgeGap * 2;
+      controls.style.setProperty('--pad-size', `${Math.round(Math.max(availableSize, 240))}px`);
     }
 
     updateControlSize();
