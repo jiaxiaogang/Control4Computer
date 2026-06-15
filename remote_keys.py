@@ -260,7 +260,7 @@ PAGE = """
         <button class="down" data-key="down">↓</button>
         <button class="volume-up" data-key="volumeup">VOL +</button>
       </section>
-      <div class="hint">单指：移动/点击；双指：滚动。</div>
+      <div class="hint">单指：移动/点击；轻点后按住拖动；双指：滚动。</div>
     </div>
     <button class="reconnect-toggle" id="reconnectToggle" type="button" aria-label="重连">↻</button>
     <div class="floating-actions">
@@ -284,10 +284,14 @@ PAGE = """
     const fullscreenToggle = document.getElementById('fullscreenToggle');
     let lastPoint = null;
     let tapPoints = [];
+    let tapDragArmedUntil = 0;
+    let pendingSingleClickTimer = null;
     let activePointers = new Map();
     let scrollPoint = null;
     let twoFingerTap = null;
     let longPressTimer = null;
+    let dragging = false;
+    let dragStartPromise = null;
     let lastMoveVibrateAt = 0;
     let pendingMove = { dx: 0, dy: 0 };
     let moveInFlight = false;
@@ -355,9 +359,40 @@ PAGE = """
       return post('/dclick');
     }
 
+    function mouseDown(button) {
+      vibrate();
+      return post(`/down/${button}`);
+    }
+
+    function mouseUp(button) {
+      return post(`/up/${button}`);
+    }
+
+    function startDrag() {
+      dragging = true;
+      dragStartPromise = mouseDown('left').finally(() => {
+        dragStartPromise = null;
+      });
+    }
+
+    function stopDrag() {
+      dragging = false;
+      const promise = dragStartPromise;
+      dragStartPromise = null;
+      if (promise) {
+        promise.finally(() => mouseUp('left'));
+      } else {
+        mouseUp('left');
+      }
+    }
+
     function flushMove() {
       moveFlushTimer = null;
       if (moveInFlight || (!pendingMove.dx && !pendingMove.dy)) return;
+      if (dragStartPromise) {
+        dragStartPromise.finally(scheduleMoveFlush);
+        return;
+      }
       const dx = Math.max(-80, Math.min(80, pendingMove.dx));
       const dy = Math.max(-80, Math.min(80, pendingMove.dy));
       pendingMove = { dx: 0, dy: 0 };
@@ -468,8 +503,12 @@ PAGE = """
       activePointers.clear();
       lastPoint = null;
       tapPoints = [];
+      tapDragArmedUntil = 0;
+      if (pendingSingleClickTimer) clearTimeout(pendingSingleClickTimer);
+      pendingSingleClickTimer = null;
       scrollPoint = null;
       twoFingerTap = null;
+      if (dragging) stopDrag();
       clearLongPressTimer();
       touchpad.classList.remove('active');
       try {
@@ -564,6 +603,11 @@ PAGE = """
         twoFingerTap = { ...scrollPoint, moved: false };
         return;
       }
+      const tapDragReady = Date.now() <= tapDragArmedUntil;
+      if (tapDragReady && pendingSingleClickTimer) {
+        clearTimeout(pendingSingleClickTimer);
+        pendingSingleClickTimer = null;
+      }
       lastPoint = {
         x: event.clientX,
         y: event.clientY,
@@ -571,14 +615,17 @@ PAGE = """
         startY: event.clientY,
         moved: false,
         longPressed: false,
+        tapDragReady,
       };
       clearLongPressTimer();
-      longPressTimer = setTimeout(() => {
-        if (!lastPoint || lastPoint.moved || activePointers.size !== 1) return;
-        lastPoint.longPressed = true;
-        tapPoints = [];
-        clickMouse('right');
-      }, 650);
+      if (!tapDragReady) {
+        longPressTimer = setTimeout(() => {
+          if (!lastPoint || lastPoint.moved || activePointers.size !== 1) return;
+          lastPoint.longPressed = true;
+          tapPoints = [];
+          clickMouse('right');
+        }, 650);
+      }
     });
 
     touchpad.addEventListener('pointermove', event => {
@@ -606,13 +653,20 @@ PAGE = """
       const dx = Math.round((event.clientX - lastPoint.x) * 5.1);
       const dy = Math.round((event.clientY - lastPoint.y) * 5.1);
       const moved = lastPoint.moved || Math.hypot(event.clientX - lastPoint.startX, event.clientY - lastPoint.startY) > 8;
+      if (moved && lastPoint.tapDragReady && !dragging) {
+        if (pendingSingleClickTimer) clearTimeout(pendingSingleClickTimer);
+        pendingSingleClickTimer = null;
+        tapPoints = [];
+        tapDragArmedUntil = 0;
+        startDrag();
+      }
       lastPoint = {
         ...lastPoint,
         x: event.clientX,
         y: event.clientY,
         moved,
       };
-      if (moved) clearLongPressTimer();
+      if (moved && !dragging) clearLongPressTimer();
       if (dx || dy) {
         vibrateDuringMove();
         moveMouse(dx, dy);
@@ -625,11 +679,18 @@ PAGE = """
       tapPoints.push(now);
       if (tapPoints.length >= 2) {
         tapPoints = [];
+        tapDragArmedUntil = 0;
+        if (pendingSingleClickTimer) clearTimeout(pendingSingleClickTimer);
+        pendingSingleClickTimer = null;
         doubleClickMouse();
       } else {
-        setTimeout(() => {
+        tapDragArmedUntil = now + 420;
+        if (pendingSingleClickTimer) clearTimeout(pendingSingleClickTimer);
+        pendingSingleClickTimer = setTimeout(() => {
           if (tapPoints.length === 1 && Date.now() - tapPoints[0] >= 300) {
             tapPoints = [];
+            tapDragArmedUntil = 0;
+            pendingSingleClickTimer = null;
             clickMouse('left');
           }
         }, 310);
@@ -643,9 +704,13 @@ PAGE = """
         scrollPoint = averagePoint();
         return;
       }
-      if (event?.type === 'pointerup' && twoFingerTap && !twoFingerTap.moved && !lastPoint) {
+      if (dragging) {
+        stopDrag();
+      } else if (event?.type === 'pointerup' && twoFingerTap && !twoFingerTap.moved && !lastPoint) {
         clickMouse('right');
       } else if (event?.type === 'pointerup' && lastPoint && !lastPoint.moved && !lastPoint.longPressed) {
+        handleTouchpadTap();
+      } else if (event?.type === 'pointerup' && lastPoint?.tapDragReady && !lastPoint.longPressed) {
         handleTouchpadTap();
       }
       lastPoint = null;
@@ -733,6 +798,26 @@ def click(button):
         abort(403)
     pyautogui.click(button=button)
     log_request_diag("click", start, f"button={button}")
+    return {"ok": True}
+
+
+@app.post("/down/<button>")
+def mouse_down(button):
+    start = request_diag_start()
+    if request.args.get("token") != TOKEN or button not in ALLOWED_BUTTONS:
+        abort(403)
+    pyautogui.mouseDown(button=button)
+    log_request_diag("down", start, f"button={button}")
+    return {"ok": True}
+
+
+@app.post("/up/<button>")
+def mouse_up(button):
+    start = request_diag_start()
+    if request.args.get("token") != TOKEN or button not in ALLOWED_BUTTONS:
+        abort(403)
+    pyautogui.mouseUp(button=button)
+    log_request_diag("up", start, f"button={button}")
     return {"ok": True}
 
 
