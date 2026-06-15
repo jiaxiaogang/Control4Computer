@@ -1,6 +1,6 @@
 from flask import Flask, request, render_template_string, abort, redirect
 from datetime import datetime
-from time import perf_counter, time
+from time import perf_counter, sleep, time
 from PIL import Image, ImageDraw
 from werkzeug.serving import make_server
 import platform
@@ -849,7 +849,7 @@ def workspace():
     if IS_MAC:
         pyautogui.hotkey("ctrl", "left" if direction == "right" else "right")
     elif IS_WINDOWS:
-        pyautogui.hotkey("ctrl", "win", "left" if direction == "right" else "right")
+        press_windows_hotkey("ctrl", "winleft", "left" if direction == "right" else "right")
     log_request_diag("workspace", start, f"direction={direction}")
     return {"ok": True}
 
@@ -862,7 +862,7 @@ def window_overview():
     if IS_MAC:
         pyautogui.press("f3")
     elif IS_WINDOWS:
-        pyautogui.hotkey("win", "tab")
+        press_windows_hotkey("winleft", "tab")
     log_request_diag("window_overview", start)
     return {"ok": True}
 
@@ -954,6 +954,15 @@ def press_key(key):
         return
 
     pyautogui.press(key)
+
+
+def press_windows_hotkey(*keys):
+    for key in keys:
+        pyautogui.keyDown(key)
+        sleep(0.02)
+    for key in reversed(keys):
+        pyautogui.keyUp(key)
+        sleep(0.02)
 
 
 def press_mac_media_key(code):
