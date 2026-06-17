@@ -296,6 +296,7 @@ PAGE = """
     <div class="floating-actions">
       <button id="vibrationDown" type="button" aria-label="减弱震感">−</button>
       <button id="vibrationUp" type="button" aria-label="增强震感">+</button>
+      <button id="scrollInvertToggle" type="button" aria-label="切换滚动方向">↕</button>
       <button id="fullscreenToggle" type="button" aria-label="切换全屏">⛶</button>
     </div>
   </main>
@@ -311,6 +312,7 @@ PAGE = """
     const reconnectToggle = document.getElementById('reconnectToggle');
     const vibrationDown = document.getElementById('vibrationDown');
     const vibrationUp = document.getElementById('vibrationUp');
+    const scrollInvertToggle = document.getElementById('scrollInvertToggle');
     const fullscreenToggle = document.getElementById('fullscreenToggle');
     let lastPoint = null;
     let tapPoints = [];
@@ -328,6 +330,7 @@ PAGE = """
     let moveInFlight = false;
     let moveFlushTimer = null;
     let vibrationScale = Number(localStorage.getItem('vibrationScale')) || 1;
+    let scrollInverted = localStorage.getItem('scrollInverted') === 'true';
 
     function updateControlSize() {
       const viewportWidth = window.visualViewport?.width || window.innerWidth;
@@ -451,7 +454,10 @@ PAGE = """
     }
 
     function scrollMouse(dx, dy) {
-      return post('/scroll', { dx, dy });
+      return post('/scroll', {
+        dx: scrollInverted ? -dx : dx,
+        dy: scrollInverted ? -dy : dy
+      });
     }
 
     function switchWorkspace(direction) {
@@ -591,6 +597,17 @@ PAGE = """
       localStorage.setItem('vibrationScale', String(vibrationScale));
       vibrate();
     });
+    function updateScrollInvertButton() {
+      scrollInvertToggle.textContent = scrollInverted ? '↕' : '↕';
+      scrollInvertToggle.style.background = scrollInverted ? 'rgba(61,139,253,.48)' : 'rgba(16,20,24,.48)';
+    }
+    scrollInvertToggle.addEventListener('click', () => {
+      scrollInverted = !scrollInverted;
+      localStorage.setItem('scrollInverted', String(scrollInverted));
+      updateScrollInvertButton();
+      vibrate();
+    });
+    updateScrollInvertButton();
     fullscreenToggle.addEventListener('click', toggleFullscreen);
     document.addEventListener('fullscreenchange', updateFullscreenButton);
 
